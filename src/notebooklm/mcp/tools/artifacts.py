@@ -31,6 +31,7 @@ from fastmcp import Context
 from ..._app import artifacts as artifact_core
 from ..._app import download as download_core
 from ..._app import generate as generate_core
+from ..._app.language import is_supported_language
 from ..._app.serialize import to_jsonable
 from ...exceptions import ValidationError
 from ...types import ArtifactType
@@ -270,6 +271,12 @@ def register(mcp: Any) -> None:
                 raise ValidationError(
                     f"Unknown artifact type {type!r}; expected one of {list(_GENERATE_TYPES)}"
                 )
+            # Validate ``language`` up front: the neutral generate core's default
+            # language resolver returns the raw string unchecked (the CLI
+            # validates via SUPPORTED_LANGUAGES first), so a bad code would be
+            # forwarded raw to the backend. Fail with a clean VALIDATION instead.
+            if language is not None and not is_supported_language(language):
+                raise ValidationError(f"Unsupported language {language!r}")
             nb_id = await resolve_notebook(client, notebook)
             raw_args: dict[str, Any] = dict(_KIND_DEFAULTS[type])
             raw_args.update(
@@ -352,7 +359,12 @@ def register(mcp: Any) -> None:
                 "output_path": path,
                 "latest": True,
             }
-            if format is not None and spec.format_choices:
+            if format is not None:
+                if not spec.format_choices:
+                    # The type has no format axis (audio/video/report/etc.); a
+                    # supplied ``format`` was previously dropped silently. Fail
+                    # with a clean VALIDATION so the caller learns it is unsupported.
+                    raise ValidationError(f"type {type!r} does not support a format option")
                 args[spec.format_param_name] = format
             plan = download_core.build_download_plan(spec, args, cwd=Path.cwd())
             result = await download_core.execute_download(

@@ -171,6 +171,29 @@ async def test_artifact_generate_bad_enum_is_validation_error(mcp_call, mock_cli
     assert "VALIDATION" in str(excinfo.value)
 
 
+async def test_artifact_generate_bad_language_is_validation_error(mcp_call, mock_client) -> None:
+    """An unsupported ``language`` projects as VALIDATION up front (not forwarded raw)."""
+    mock_client.artifacts.generate_audio = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call(
+            "artifact_generate",
+            {"notebook": NB_ID, "type": "audio", "language": "klingon"},
+        )
+    assert "VALIDATION" in str(excinfo.value)
+    mock_client.artifacts.generate_audio.assert_not_called()
+
+
+async def test_artifact_generate_valid_language_passes(mcp_call, mock_client) -> None:
+    """A supported language code is accepted and forwarded."""
+    mock_client.artifacts.generate_audio = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
+    result = await mcp_call(
+        "artifact_generate",
+        {"notebook": NB_ID, "type": "audio", "language": "es"},
+    )
+    assert result.structured_content["kind"] == "audio"
+    mock_client.artifacts.generate_audio.assert_awaited_once()
+
+
 # ---------------------------------------------------------------------------
 # artifact_status (stateless poll)
 # ---------------------------------------------------------------------------
@@ -233,6 +256,36 @@ async def test_artifact_download_unknown_type_is_validation_error(mcp_call, mock
     with pytest.raises(ToolError) as excinfo:
         await mcp_call("artifact_download", {"notebook": NB_ID, "type": "bogus", "path": "/tmp/x"})
     assert "VALIDATION" in str(excinfo.value)
+
+
+async def test_artifact_download_bad_format_for_supported_type_is_validation(
+    mcp_call, mock_client, tmp_path
+) -> None:
+    """A bad ``format`` for a type that DOES support format projects VALIDATION."""
+    out = str(tmp_path / "quiz.json")
+    mock_client.artifacts.list = AsyncMock(return_value=[_QUIZ_ARTIFACT])
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call(
+            "artifact_download",
+            {"notebook": NB_ID, "type": "quiz", "path": out, "format": "bogus"},
+        )
+    assert "VALIDATION" in str(excinfo.value)
+
+
+async def test_artifact_download_format_for_unsupported_type_is_validation(
+    mcp_call, mock_client, tmp_path
+) -> None:
+    """Supplying ``format`` for a type WITHOUT format choices errors (was silently dropped)."""
+    out = str(tmp_path / "out.mp3")
+    mock_client.artifacts.list = AsyncMock(return_value=[_AUDIO_ARTIFACT])
+    mock_client.artifacts.download_audio = AsyncMock(return_value=out)
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call(
+            "artifact_download",
+            {"notebook": NB_ID, "type": "audio", "path": out, "format": "pdf"},
+        )
+    assert "VALIDATION" in str(excinfo.value)
+    mock_client.artifacts.download_audio.assert_not_called()
 
 
 async def test_artifact_download_no_artifacts(mcp_call, mock_client, tmp_path) -> None:

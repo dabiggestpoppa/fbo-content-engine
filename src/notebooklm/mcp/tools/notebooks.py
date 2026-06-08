@@ -7,15 +7,16 @@ notebook reference (name OR id) via the Phase 1 :mod:`._resolve` helper, drive t
 
 The ``_app`` rename/describe executors take an injected ``resolve_notebook_id``
 callable shaped for the CLI (``(client, ref, *, json_output) -> id``). The MCP
-adapter has already resolved the id with :func:`resolve_notebook`, so it passes a
-trivial pass-through resolver that returns the already-resolved id unchanged.
+adapter has already resolved the id with :func:`resolve_notebook`, so it passes
+the shared :func:`passthrough_notebook_id` resolver, which returns the
+already-resolved id unchanged.
 
 This module imports NO ``click`` / ``rich`` / ``cli``.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastmcp import Context
 
@@ -25,16 +26,8 @@ from .._confirm import DESTRUCTIVE, READ_ONLY, needs_confirmation
 from .._context import get_client
 from .._errors import mcp_errors
 from .._resolve import resolve_notebook
-
-if TYPE_CHECKING:
-    from ...client import NotebookLMClient
-
-
-async def _passthrough_resolver(
-    _client: NotebookLMClient, notebook_id: str, *, json_output: bool = False
-) -> str:
-    """Return ``notebook_id`` unchanged (MCP resolves refs before the executor)."""
-    return notebook_id
+from ._passthrough import passthrough_notebook_id
+from ._preview import title_for_id
 
 
 def register(mcp: Any) -> None:
@@ -63,7 +56,7 @@ def register(mcp: Any) -> None:
         with mcp_errors():
             nb_id = await resolve_notebook(client, notebook)
             result = await core.execute_notebook_describe(
-                client, nb_id, resolve_notebook_id=_passthrough_resolver
+                client, nb_id, resolve_notebook_id=passthrough_notebook_id
             )
             return to_jsonable(result)
 
@@ -74,7 +67,7 @@ def register(mcp: Any) -> None:
         with mcp_errors():
             nb_id = await resolve_notebook(client, notebook)
             result = await core.execute_notebook_rename(
-                client, nb_id, new_title, resolve_notebook_id=_passthrough_resolver
+                client, nb_id, new_title, resolve_notebook_id=passthrough_notebook_id
             )
             return to_jsonable(result)
 
@@ -90,18 +83,9 @@ def register(mcp: Any) -> None:
         with mcp_errors():
             nb_id = await resolve_notebook(client, notebook)
             if not confirm:
-                title = await _notebook_title(client, nb_id)
+                title = title_for_id(await client.notebooks.list(), nb_id)
                 return needs_confirmation(
                     {"action": "delete_notebook", "notebook_id": nb_id, "title": title}
                 )
             await core.execute_notebook_delete(client, nb_id)
             return {"status": "deleted", "notebook_id": nb_id}
-
-
-async def _notebook_title(client: NotebookLMClient, notebook_id: str) -> str | None:
-    """Best-effort lookup of a notebook's title for the delete preview."""
-    notebooks = await client.notebooks.list()
-    for notebook in notebooks:
-        if str(notebook.id) == notebook_id:
-            return notebook.title
-    return None

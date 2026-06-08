@@ -16,7 +16,7 @@ This module imports NO ``click`` / ``rich`` / ``cli``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastmcp import Context
 
@@ -30,9 +30,8 @@ from .._confirm import DESTRUCTIVE, READ_ONLY, needs_confirmation
 from .._context import get_client
 from .._errors import mcp_errors
 from .._resolve import resolve_notebook, resolve_source
-
-if TYPE_CHECKING:
-    from ...client import NotebookLMClient
+from ._passthrough import passthrough_child_id
+from ._preview import title_for_id
 
 #: MCP source types. Superset of the neutral ``source_add`` core's types
 #: (which lacks ``drive``); ``drive`` is dispatched to the Drive path.
@@ -40,17 +39,6 @@ _SOURCE_TYPES = ("url", "text", "file", "drive", "youtube")
 
 #: The default Drive MIME choice when the caller does not specify one.
 _DEFAULT_DRIVE_MIME = "google-doc"
-
-
-async def _resolve_source_id_passthrough(
-    _client: NotebookLMClient,
-    _notebook_id: str,
-    source_id: str,
-    *,
-    json_output: bool = False,
-) -> str:
-    """Return ``source_id`` unchanged (MCP resolves source refs before the executor)."""
-    return source_id
 
 
 def register(mcp: Any) -> None:
@@ -91,7 +79,7 @@ def register(mcp: Any) -> None:
                 mut_core.SourceRenamePlan(
                     notebook_id=nb_id, source_id=src_id, new_title=new_title, json_output=False
                 ),
-                resolve_source_id=_resolve_source_id_passthrough,
+                resolve_source_id=passthrough_child_id,
             )
             return to_jsonable(result)
 
@@ -110,7 +98,7 @@ def register(mcp: Any) -> None:
             nb_id = await resolve_notebook(client, notebook)
             src_id = await resolve_source(client, nb_id, source)
             if not confirm:
-                title = await _source_title(client, nb_id, src_id)
+                title = title_for_id(await client.sources.list(nb_id), src_id)
                 return needs_confirmation(
                     {
                         "action": "delete_source",
@@ -256,12 +244,3 @@ def _wait_outcome_payload(notebook_id: str, outcome: wait_core.SourceWaitOutcome
     if isinstance(outcome, wait_core.SourceWaitProcessingError):
         return {"notebook_id": notebook_id, "status": "failed", "error": str(outcome.error)}
     return {"notebook_id": notebook_id, "status": "timeout", "error": str(outcome.error)}
-
-
-async def _source_title(client: NotebookLMClient, notebook_id: str, source_id: str) -> str | None:
-    """Best-effort lookup of a source's title for the delete preview."""
-    sources = await client.sources.list(notebook_id)
-    for src in sources:
-        if str(src.id) == source_id:
-            return src.title
-    return None

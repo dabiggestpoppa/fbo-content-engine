@@ -1104,6 +1104,8 @@ src/notebooklm/
 │   ├── _serialize.py            # Re-export of _app.serialize.to_jsonable for the MCP wire shape
 │   └── tools/                   # Per-domain tool modules; each exposes register(mcp) wired by server.register_all
 │       ├── __init__.py          # Tools package marker (no click/rich/cli)
+│       ├── _passthrough.py      # Shared pass-through resolvers (passthrough_notebook_id/passthrough_child_id) for the CLI-shaped _app executors
+│       ├── _preview.py          # title_for_id() — shared id→title lookup for the delete tools' needs_confirmation previews
 │       ├── notebooks.py         # notebook_list/create/describe/rename/delete over _app.notebooks
 │       ├── sources.py           # source_list/get_content/rename/delete/wait/add over _app.source_* (add: url/text/file/youtube via source_add, drive via source_mutations)
 │       ├── chat.py              # chat_ask (client.chat.ask) + chat_configure (_app.chat.execute_configure)

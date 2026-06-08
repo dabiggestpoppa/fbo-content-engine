@@ -4,8 +4,8 @@ Thin adapters over the transport-neutral ``_app.notes`` core. Notebook refs
 resolve via the Phase 1 :func:`resolve_notebook`; note refs resolve via
 :func:`resolve_note` (name OR id, notebook-scoped). The ``_app`` executors take
 injected ``resolve_notebook_id`` / ``resolve_note_id`` callables shaped for the
-CLI; since the MCP adapter resolves refs up front it passes trivial pass-through
-resolvers that return the already-resolved ids unchanged.
+CLI; since the MCP adapter resolves refs up front it passes the shared
+pass-through resolvers, which return the already-resolved ids unchanged.
 
 Split into verbs (``note_create`` / ``note_list`` / ``note_update`` /
 ``note_delete``), NOT an ``action`` enum. ``note_delete`` follows the two-step
@@ -16,7 +16,7 @@ This module imports NO ``click`` / ``rich`` / ``cli``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastmcp import Context
 
@@ -26,27 +26,8 @@ from .._confirm import DESTRUCTIVE, READ_ONLY, needs_confirmation
 from .._context import get_client
 from .._errors import mcp_errors
 from .._resolve import resolve_note, resolve_notebook
-
-if TYPE_CHECKING:
-    from ...client import NotebookLMClient
-
-
-async def _passthrough_notebook(
-    _client: NotebookLMClient, notebook_id: str, *, json_output: bool = False
-) -> str:
-    """Return ``notebook_id`` unchanged (MCP resolves refs before the executor)."""
-    return notebook_id
-
-
-async def _passthrough_note(
-    _client: NotebookLMClient,
-    _notebook_id: str,
-    note_id: str,
-    *,
-    json_output: bool = False,
-) -> str:
-    """Return ``note_id`` unchanged (MCP resolves note refs before the executor)."""
-    return note_id
+from ._passthrough import passthrough_child_id, passthrough_notebook_id
+from ._preview import title_for_id
 
 
 def register(mcp: Any) -> None:
@@ -63,7 +44,7 @@ def register(mcp: Any) -> None:
                 nb_id,
                 title,
                 content,
-                resolve_notebook_id=_passthrough_notebook,
+                resolve_notebook_id=passthrough_notebook_id,
             )
             return {
                 "notebook_id": result.notebook_id,
@@ -94,8 +75,8 @@ def register(mcp: Any) -> None:
                 note_id,
                 title=None,
                 content=content,
-                resolve_notebook_id=_passthrough_notebook,
-                resolve_note_id=_passthrough_note,
+                resolve_notebook_id=passthrough_notebook_id,
+                resolve_note_id=passthrough_child_id,
             )
             return {
                 "status": "updated",
@@ -118,7 +99,7 @@ def register(mcp: Any) -> None:
             nb_id = await resolve_notebook(client, notebook)
             note_id = await resolve_note(client, nb_id, note)
             if not confirm:
-                title = await _note_title(client, nb_id, note_id)
+                title = title_for_id(await client.notes.list(nb_id), note_id)
                 return needs_confirmation(
                     {
                         "action": "delete_note",
@@ -129,12 +110,3 @@ def register(mcp: Any) -> None:
                 )
             await core.execute_note_delete(client, nb_id, note_id)
             return {"status": "deleted", "notebook_id": nb_id, "note_id": note_id}
-
-
-async def _note_title(client: NotebookLMClient, notebook_id: str, note_id: str) -> str | None:
-    """Best-effort lookup of a note's title for the delete preview."""
-    notes = await client.notes.list(notebook_id)
-    for note in notes:
-        if str(note.id) == note_id:
-            return note.title
-    return None

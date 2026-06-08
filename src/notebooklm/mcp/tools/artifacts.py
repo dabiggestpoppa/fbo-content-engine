@@ -38,6 +38,7 @@ from .._confirm import READ_ONLY
 from .._context import get_client
 from .._errors import mcp_errors
 from .._resolve import resolve_notebook
+from ._passthrough import passthrough_notebook_id
 
 if TYPE_CHECKING:
     from ...client import NotebookLMClient
@@ -192,13 +193,6 @@ _DOWNLOAD_SPECS: dict[str, download_core.DownloadTypeSpec] = {
 }
 
 
-async def _passthrough_notebook(
-    _client: NotebookLMClient, notebook_id: str, *, json_output: bool = False
-) -> str:
-    """Return ``notebook_id`` unchanged (MCP resolves the notebook before generate)."""
-    return notebook_id
-
-
 async def _passthrough_sources(
     _client: NotebookLMClient,
     _notebook_id: str,
@@ -210,13 +204,9 @@ async def _passthrough_sources(
     return source_ids
 
 
-def _passthrough_download_notebook(notebook_id: str) -> Any:
+async def _passthrough_download_notebook(notebook_id: str) -> str:
     """Async pass-through notebook resolver for the download core."""
-
-    async def _resolve() -> str:
-        return notebook_id
-
-    return _resolve()
+    return notebook_id
 
 
 def _no_partial_artifact(_artifacts: list[Any], artifact_id: str) -> str:
@@ -313,7 +303,7 @@ def register(mcp: Any) -> None:
             result = await generate_core.execute_generation(
                 plan,
                 client,
-                notebook_resolver=_passthrough_notebook,
+                notebook_resolver=passthrough_notebook_id,
                 source_resolver=_passthrough_sources,
             )
             return _generation_payload(nb_id, result)
@@ -368,7 +358,7 @@ def register(mcp: Any) -> None:
             result = await download_core.execute_download(
                 plan,
                 client,
-                notebook_resolver=lambda nb_id_: _passthrough_download_notebook(nb_id_),
+                notebook_resolver=_passthrough_download_notebook,
                 artifact_resolver=_no_partial_artifact,
             )
             return to_jsonable(result)

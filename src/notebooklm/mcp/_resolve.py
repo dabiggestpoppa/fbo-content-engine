@@ -40,12 +40,17 @@ from .._app.resolve import (
     resolve_ref,
     validate_id,
 )
-from ..exceptions import NotebookNotFoundError, SourceNotFoundError, ValidationError
+from ..exceptions import (
+    NotebookNotFoundError,
+    NoteNotFoundError,
+    SourceNotFoundError,
+    ValidationError,
+)
 
 if TYPE_CHECKING:
     from ..client import NotebookLMClient
 
-__all__ = ["resolve_notebook", "resolve_source"]
+__all__ = ["resolve_note", "resolve_notebook", "resolve_source"]
 
 #: A token made only of hex digits and dashes routes to the id/prefix path; any
 #: other character (a space, a letter outside ``a-f``, punctuation) routes to the
@@ -60,7 +65,7 @@ def _resolve_by_title(
     token: str,
     items: Sequence[Any],
     *,
-    not_found: type[NotebookNotFoundError | SourceNotFoundError],
+    not_found: type[NotebookNotFoundError | SourceNotFoundError | NoteNotFoundError],
 ) -> str:
     """Resolve ``token`` by case-insensitive exact title over ``items``.
 
@@ -91,7 +96,7 @@ def _resolve_by_id_or_prefix(
     token: str,
     items: Sequence[Any],
     *,
-    not_found: type[NotebookNotFoundError | SourceNotFoundError],
+    not_found: type[NotebookNotFoundError | SourceNotFoundError | NoteNotFoundError],
 ) -> str:
     """Resolve a hex-ish ``token`` via ``resolve_ref``, mapping no-match to NotFound."""
     try:
@@ -117,7 +122,7 @@ def _resolve_hex(
     token: str,
     items: Sequence[Any],
     *,
-    not_found: type[NotebookNotFoundError | SourceNotFoundError],
+    not_found: type[NotebookNotFoundError | SourceNotFoundError | NoteNotFoundError],
 ) -> str:
     """Resolve a hex-ish ``token``, preferring id/prefix but falling back to title.
 
@@ -194,3 +199,32 @@ async def resolve_source(client: NotebookLMClient, notebook_id: str, ref: str) -
     if _HEX_ISH.match(ref):
         return _resolve_hex(ref, items, not_found=SourceNotFoundError)
     return _resolve_by_title(ref, items, not_found=SourceNotFoundError)
+
+
+async def resolve_note(client: NotebookLMClient, notebook_id: str, ref: str) -> str:
+    """Resolve a note reference within a notebook to its id.
+
+    Same matching rules as :func:`resolve_source`, over the notebook's note list.
+
+    Args:
+        client: The lifespan-bound client.
+        notebook_id: The (already-resolved) notebook id the note lives in.
+        ref: A full canonical UUID, a hex id prefix, or an exact (case-insensitive)
+            note title.
+
+    Returns:
+        The note's canonical id.
+
+    Raises:
+        ValidationError: ``ref`` is empty/whitespace.
+        NoteNotFoundError: No note in the notebook matches ``ref``.
+        AmbiguousIdError: ``ref`` matches more than one note by prefix or title.
+    """
+    ref = validate_id(ref, "note")
+    # Full UUID fast-path — never list.
+    if FULL_ID_PATTERN.fullmatch(ref):
+        return ref
+    items = await client.notes.list(notebook_id)
+    if _HEX_ISH.match(ref):
+        return _resolve_hex(ref, items, not_found=NoteNotFoundError)
+    return _resolve_by_title(ref, items, not_found=NoteNotFoundError)

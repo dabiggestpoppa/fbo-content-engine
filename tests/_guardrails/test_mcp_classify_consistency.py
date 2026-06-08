@@ -21,13 +21,30 @@ from __future__ import annotations
 
 import pytest
 
-from notebooklm import exceptions as exc
-from notebooklm._app import SourceMutationError
-from notebooklm._app.errors import ErrorCategory, classify
-from notebooklm.mcp._errors import CATEGORY_TABLE, ERROR_CODES, tool_error_payload
+# The canonical contributor install omits the `mcp` extra (no fastmcp). This
+# guardrail imports ``notebooklm.mcp._errors`` (which imports fastmcp), so skip
+# the whole module cleanly when the extra is absent rather than fail collection.
+pytest.importorskip("fastmcp")
+
+from notebooklm import exceptions as exc  # noqa: E402 - after importorskip guard
+from notebooklm._app import SourceMutationError  # noqa: E402 - after importorskip guard
+from notebooklm._app.errors import (  # noqa: E402 - after importorskip guard
+    ErrorCategory,
+    classify,
+)
+from notebooklm.mcp._errors import (  # noqa: E402 - after importorskip guard
+    CATEGORY_TABLE,
+    ERROR_CODES,
+    tool_error_payload,
+)
 
 # The MCP code each neutral category projects onto. Distinct codes recover the
 # category 1:1; the only collapse is LIBRARY -> ``ERROR`` (the catch-all).
+# NOTE: this map is duplicated INTENTIONALLY from ``CATEGORY_TABLE`` (and from
+# ``test_errors.py``) as an INDEPENDENT ORACLE — do NOT "DRY" it into a shared
+# import. Hand-writing the expected projection here is what makes the gate able to
+# catch a wrong edit to the production table; importing the table would make the
+# test tautological.
 _CATEGORY_TO_MCP_CODE: dict[ErrorCategory, str] = {
     ErrorCategory.NOT_FOUND: "NOT_FOUND",
     ErrorCategory.AUTH: "AUTH",

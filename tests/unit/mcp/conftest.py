@@ -13,14 +13,41 @@ any dataclass — so tests need not construct real core types.
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastmcp import Client, FastMCP
 
-from notebooklm.mcp.server import create_server
+
+# The canonical contributor install (`uv sync --frozen --extra browser --extra dev
+# --extra markdown`) omits the `mcp` extra, so `fastmcp` may be absent. A bare
+# top-level ``pytest.importorskip`` in a *conftest* raises during conftest import,
+# which pytest reports as a collection ERROR (not a clean skip) — so instead we
+# tell pytest to ignore this whole directory when fastmcp is missing. The default
+# `uv run pytest` then stays green without the extra; with the extra these tests
+# RUN. Each test/guardrail module that imports fastmcp also carries its own
+# ``pytest.importorskip("fastmcp")`` as a belt-and-suspenders guard.
+def _fastmcp_available() -> bool:
+    """Whether the optional ``mcp`` extra (fastmcp) is importable.
+
+    ``find_spec`` returns ``None`` for an absent leaf but can *raise*
+    ``ModuleNotFoundError`` if an ancestor is missing — treat either as absent.
+    """
+    try:
+        return importlib.util.find_spec("fastmcp") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+collect_ignore_glob: list[str] = []
+if not _fastmcp_available():
+    collect_ignore_glob = ["*"]
+else:
+    from fastmcp import Client, FastMCP
+
+    from notebooklm.mcp.server import create_server
 
 # Public client namespaces the tools reach through. Each is a MagicMock whose
 # async methods tests override with AsyncMock.

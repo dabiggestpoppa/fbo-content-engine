@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
-from mcp.types import ToolAnnotations
+import pytest
 
-from notebooklm.mcp._confirm import DESTRUCTIVE, READ_ONLY, needs_confirmation
+# Skip cleanly when the `mcp` extra (fastmcp + the mcp SDK) is absent; see
+# conftest.py. fastmcp depends on the `mcp` package, so guarding on fastmcp also
+# covers the ``mcp.types`` import below.
+pytest.importorskip("fastmcp")
+
+from mcp.types import ToolAnnotations  # noqa: E402 - after importorskip guard
+
+from notebooklm.mcp._confirm import (  # noqa: E402 - after importorskip guard
+    DESTRUCTIVE,
+    READ_ONLY,
+    needs_confirmation,
+)
 
 
 def test_needs_confirmation_wraps_preview() -> None:

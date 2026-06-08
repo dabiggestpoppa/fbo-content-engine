@@ -55,7 +55,9 @@ async with await NotebookLMClient.from_storage() as client:
     status = await client.artifacts.generate_audio(nb_id)
 ```
 
-CLI: top-level commands (`login`, `use`, `status`, `list`, `ask`) plus grouped subcommands (`source add`, `artifact list`, `generate audio`, `download video`, `note create`, …). Full reference: [docs/cli-reference.md](docs/cli-reference.md).
+CLI: top-level commands (`login`, `use`, `status`, `list`, `ask`) plus grouped subcommands (`source add`, `artifact list`, `generate audio`, `download video`, `note create`, `mcp install <client>`, …). Full reference: [docs/cli-reference.md](docs/cli-reference.md).
+
+An opt-in MCP server (`mcp` extra, console script `notebooklm-mcp`) exposes the same `_app/` business logic over the Model Context Protocol; `notebooklm mcp install <client>` wires it into Claude Desktop/Code, Cursor, or Windsurf, and `desktop-extension/` packages a one-click `.mcpb` bundle.
 
 ## Testing
 

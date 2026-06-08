@@ -51,16 +51,14 @@ ClientFactory = Callable[[], AbstractAsyncContextManager[NotebookLMClient]]
 def register_all(mcp: FastMCP) -> None:
     """Register every tool module on ``mcp``.
 
-    Phase 1 registers no tools — this is the seam Phase 2 tool modules plug into
-    additively (``from .tools import notebooks, sources, ...`` then
-    ``notebooks.register(mcp)``). Kept as a single chokepoint so the manifest
-    guardrail has one place to reason about the full tool set.
+    Kept as a single chokepoint so the manifest guardrail has one place to reason
+    about the full tool set. Phase 2a wires the notebooks/sources/chat/notes
+    domains; artifacts/research/meta plug in additively in Phase 2b.
     """
-    # Phase 2: register tool modules here, e.g.
-    #   from .tools import artifacts, chat, meta, notebooks, notes, research, sources
-    #   for module in (notebooks, sources, chat, artifacts, research, notes, meta):
-    #       module.register(mcp)
-    return None
+    from .tools import notebooks
+
+    for module in (notebooks,):
+        module.register(mcp)
 
 
 def create_server(

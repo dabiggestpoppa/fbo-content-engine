@@ -100,7 +100,12 @@ def test_manifest_describes_this_package_not_the_competitor() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _make_stub_uvx(directory: Path, name: str = "uvx") -> Path:
+def _make_stub_uvx(directory: Path, name: str | None = None) -> Path:
+    # On Windows, shutil.which("uvx") only resolves a name carrying a PATHEXT
+    # extension, and _candidate_uvx_paths() looks for "uvx.exe" — so the stub
+    # must be a .exe there for find_uvx() to discover it. On POSIX it's "uvx".
+    if name is None:
+        name = "uvx.exe" if os.name == "nt" else "uvx"
     path = directory / name
     path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     path.chmod(path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -132,6 +137,9 @@ def test_find_uvx_falls_back_to_local_bin(tmp_path: Path, monkeypatch: pytest.Mo
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
     monkeypatch.setenv("HOME", str(home))
+    # Windows expanduser("~") reads USERPROFILE, not HOME — set both so the
+    # candidate ~/.local/bin path resolves to the temp home on every OS.
+    monkeypatch.setenv("USERPROFILE", str(home))
 
     run_server = _load_run_server()
     found = run_server.find_uvx()

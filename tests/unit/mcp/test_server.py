@@ -7,11 +7,21 @@ from collections.abc import AsyncIterator
 from unittest.mock import MagicMock
 
 import pytest
-from fastmcp import Client, FastMCP
 
-from notebooklm.mcp import __main__ as entry
-from notebooklm.mcp._context import AppState, get_client
-from notebooklm.mcp.server import SERVER_NAME, create_server
+# Skip cleanly when the `mcp` extra (fastmcp) is absent; see conftest.py.
+pytest.importorskip("fastmcp")
+
+from fastmcp import Client, FastMCP  # noqa: E402 - after importorskip guard
+
+from notebooklm.mcp import __main__ as entry  # noqa: E402 - after importorskip guard
+from notebooklm.mcp._context import (  # noqa: E402 - after importorskip guard
+    AppState,
+    get_client,
+)
+from notebooklm.mcp.server import (  # noqa: E402 - after importorskip guard
+    SERVER_NAME,
+    create_server,
+)
 
 
 def test_create_server_returns_fastmcp(mock_client: MagicMock) -> None:
@@ -66,8 +76,10 @@ def test_bind_guard_allows_loopback(host: str) -> None:
     entry._check_http_bind_allowed(host, allow_external=False)
 
 
-@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.10", "::"])
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.10", "::", "", "   "])
 def test_bind_guard_refuses_non_loopback(host: str) -> None:
+    # An empty / whitespace-only host is a fail-closed refusal too — it would
+    # otherwise bind to all interfaces.
     with pytest.raises(SystemExit):
         entry._check_http_bind_allowed(host, allow_external=False)
 
@@ -128,3 +140,45 @@ def test_main_passes_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(entry, "create_server", fake_create)
     entry.main(["--profile", "work"])
     assert seen["profile"] == "work"
+
+
+# --------------------------------------------------------------------------- #
+# Env-derived defaults (Fix E)
+# --------------------------------------------------------------------------- #
+def test_bad_transport_env_errors_cleanly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A bogus NOTEBOOKLM_MCP_TRANSPORT must fail, not silently fall back to stdio."""
+    monkeypatch.setenv("NOTEBOOKLM_MCP_TRANSPORT", "bogus")
+    fake_server = MagicMock()
+    monkeypatch.setattr(entry, "create_server", lambda **kw: fake_server)
+
+    with pytest.raises(SystemExit):
+        entry.main([])
+    fake_server.run.assert_not_called()
+
+
+def test_bad_port_env_with_cli_override_works(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-int NOTEBOOKLM_MCP_PORT must not crash parser build; --port overrides it."""
+    monkeypatch.setenv("NOTEBOOKLM_MCP_PORT", "not-an-int")
+    monkeypatch.delenv("NOTEBOOKLM_MCP_ALLOW_EXTERNAL_BIND", raising=False)
+    runs: list[dict] = []
+    fake_server = MagicMock()
+    fake_server.run = lambda **k: runs.append(k)
+    monkeypatch.setattr(entry, "create_server", lambda **kw: fake_server)
+
+    entry.main(["--transport", "http", "--host", "127.0.0.1", "--port", "9000"])
+    assert runs and runs[0]["port"] == 9000
+
+
+def test_bad_port_env_without_override_errors_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-int NOTEBOOKLM_MCP_PORT with no override fails cleanly (not a build crash)."""
+    monkeypatch.setenv("NOTEBOOKLM_MCP_PORT", "not-an-int")
+    fake_server = MagicMock()
+    monkeypatch.setattr(entry, "create_server", lambda **kw: fake_server)
+
+    # Building the parser must NOT raise; the error surfaces as a clean SystemExit
+    # at parse/convert time, only when the http transport actually needs the port.
+    with pytest.raises(SystemExit):
+        entry.main(["--transport", "http", "--host", "127.0.0.1"])
+    fake_server.run.assert_not_called()

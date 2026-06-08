@@ -29,8 +29,14 @@ __all__ = ["main"]
 ALLOW_EXTERNAL_BIND_ENV = "NOTEBOOKLM_MCP_ALLOW_EXTERNAL_BIND"
 
 #: Hostnames that are always treated as loopback even though they are not numeric
-#: IP literals.
-_LOOPBACK_HOSTNAMES = frozenset({"localhost", ""})
+#: IP literals. An empty / whitespace host is intentionally NOT here — it must be
+#: refused (binding to "" listens on all interfaces).
+_LOOPBACK_HOSTNAMES = frozenset({"localhost"})
+
+#: Valid resolved transports. An env-derived default is validated against this
+#: AFTER parsing (argparse ``choices`` validates explicit CLI args, but not the
+#: env-supplied default).
+_VALID_TRANSPORTS = frozenset({"stdio", "http"})
 
 
 def _configure_logging(level: str) -> None:
@@ -57,9 +63,21 @@ def _is_loopback(host: str) -> bool:
 def _check_http_bind_allowed(host: str, *, allow_external: bool) -> None:
     """Refuse to bind the HTTP transport to a non-loopback host unless opted in.
 
+    An empty / whitespace-only ``host`` is a HARD refusal (fail closed) even with
+    ``allow_external`` — binding to "" listens on all interfaces, and there is no
+    legitimate reason to express that as a blank host rather than an explicit
+    ``0.0.0.0`` (which still needs the override).
+
     Raises:
-        SystemExit: ``host`` is not loopback and ``allow_external`` is ``False``.
+        SystemExit: ``host`` is empty/whitespace, or is not loopback and
+            ``allow_external`` is ``False``.
     """
+    if not host.strip():
+        raise SystemExit(
+            "Refusing to bind the MCP HTTP transport to an empty host "
+            "(this would expose the server on all interfaces). Pass an explicit "
+            "loopback host such as 127.0.0.1."
+        )
     if _is_loopback(host) or allow_external:
         return
     raise SystemExit(
@@ -92,8 +110,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--port",
-        type=int,
-        default=int(os.environ.get("NOTEBOOKLM_MCP_PORT", "8000")),
+        # NOT type=int and NOT int(os.environ[...]) at build time: a bad
+        # NOTEBOOKLM_MCP_PORT must not crash the parser before CLI args are read
+        # (which would make --port unable to override it). Kept as a string and
+        # converted after parse with a clear error (see ``_resolve_port``).
+        default=os.environ.get("NOTEBOOKLM_MCP_PORT", "8000"),
         help="HTTP bind port (http transport only; default: 8000).",
     )
     parser.add_argument(
@@ -104,19 +125,46 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_port(raw: str) -> int:
+    """Convert the (possibly env-derived) ``--port`` string to an int, or fail clean.
+
+    Done after parse so a bad ``NOTEBOOKLM_MCP_PORT`` default does not crash the
+    parser build before ``--port`` can override it.
+    """
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise SystemExit(
+            f"Invalid port {raw!r}: must be an integer "
+            f"(check the --port argument and NOTEBOOKLM_MCP_PORT)."
+        ) from None
+
+
 def main(argv: list[str] | None = None) -> None:
     """Parse args, enforce the bind guard, and run the server."""
     args = _build_parser().parse_args(argv)
     _configure_logging(args.log_level)
+
+    # argparse ``choices`` validates an explicit --transport, but NOT an
+    # env-derived default; validate the resolved value so a bogus
+    # NOTEBOOKLM_MCP_TRANSPORT fails loud instead of silently running stdio.
+    if args.transport not in _VALID_TRANSPORTS:
+        raise SystemExit(
+            f"Invalid transport {args.transport!r}: must be one of "
+            f"{sorted(_VALID_TRANSPORTS)} (check --transport and "
+            f"NOTEBOOKLM_MCP_TRANSPORT)."
+        )
 
     server = create_server(profile=args.profile)
 
     if args.transport == "http":
         allow_external = os.environ.get(ALLOW_EXTERNAL_BIND_ENV) == "1"
         _check_http_bind_allowed(args.host, allow_external=allow_external)
-        server.run(transport="http", host=args.host, port=args.port)
+        server.run(transport="http", host=args.host, port=_resolve_port(args.port))
     else:
-        server.run(transport="stdio")
+        # show_banner=False keeps FastMCP's startup banner out of the host's logs
+        # (and off stdout — stdio requires uncontaminated JSON-RPC).
+        server.run(transport="stdio", show_banner=False)
 
 
 if __name__ == "__main__":

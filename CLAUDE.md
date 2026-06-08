@@ -65,7 +65,7 @@ Unit (`tests/unit/`, no network) · integration (`tests/integration/`, mocked HT
 
 ## Docs
 
-`docs/`: installation · cli-reference · python-api · configuration · troubleshooting · development · architecture · rpc-development · rpc-reference · adr/.
+`docs/`: installation · cli-reference · python-api · configuration · troubleshooting · development · architecture · mcp-guide · rpc-development · rpc-reference · adr/.
 
 ## Pull Request Workflow (required)
 

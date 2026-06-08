@@ -14,9 +14,20 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from notebooklm._app.resolve import AmbiguousIdError
-from notebooklm.exceptions import NotebookNotFoundError, SourceNotFoundError
-from notebooklm.mcp._resolve import resolve_notebook, resolve_source
+# Skip cleanly when the `mcp` extra (fastmcp) is absent; see conftest.py. The
+# resolver itself imports no fastmcp, but the guard keeps this module consistent
+# with the rest of the mcp suite and self-protecting if collected directly.
+pytest.importorskip("fastmcp")
+
+from notebooklm._app.resolve import AmbiguousIdError  # noqa: E402 - after importorskip guard
+from notebooklm.exceptions import (  # noqa: E402 - after importorskip guard
+    NotebookNotFoundError,
+    SourceNotFoundError,
+)
+from notebooklm.mcp._resolve import (  # noqa: E402 - after importorskip guard
+    resolve_notebook,
+    resolve_source,
+)
 
 FULL_A = "abc12345-6789-4abc-def0-1234567890ab"
 FULL_B = "abc12345-6789-4abc-def0-ffffffffffff"
@@ -66,6 +77,12 @@ async def test_title_match_case_insensitive() -> None:
     assert await resolve_notebook(client, "my notebook") == "deadbeef"
 
 
+async def test_title_match_casefold_non_ascii() -> None:
+    """casefold (not lower) — 'STRASSE' must match the title 'Straße' (ß -> ss)."""
+    client = _client(notebooks=[_NB("deadbeef", "Straße"), _NB("cafef00d", "Other")])
+    assert await resolve_notebook(client, "STRASSE") == "deadbeef"
+
+
 async def test_ambiguous_prefix_raises_with_candidates() -> None:
     client = _client(notebooks=[_NB("deadbeef01", "A"), _NB("deadbeef02", "B")])
     with pytest.raises(AmbiguousIdError) as caught:
@@ -90,6 +107,38 @@ async def test_no_match_prefix_raises_not_found() -> None:
     client = _client(notebooks=[_NB("deadbeef", "Alpha")])
     with pytest.raises(NotebookNotFoundError):
         await resolve_notebook(client, "ffff")
+
+
+@pytest.mark.parametrize("title", ["beef", "ABBA", "1234", "DEADBEEF"])
+async def test_hex_only_title_falls_back_to_title(title: str) -> None:
+    """A notebook whose TITLE is all-hex resolves by name (id/prefix path misses)."""
+    client = _client(notebooks=[_NB("0000aaaa1111", title), _NB("cafef00d", "Other")])
+    assert await resolve_notebook(client, title) == "0000aaaa1111"
+
+
+async def test_hex_token_prefers_id_over_title() -> None:
+    """When a hex token is BOTH a valid id-prefix and a title, the id/prefix wins."""
+    client = _client(notebooks=[_NB("beef0001", "Real Title"), _NB("cafef00d", "beef")])
+    # 'beef' is a unique id-prefix of beef0001 *and* the title of cafef00d; the
+    # id/prefix path must win, so the result is beef0001 (not cafef00d).
+    assert await resolve_notebook(client, "beef") == "beef0001"
+
+
+async def test_ambiguous_hex_prefix_does_not_fall_back_to_title() -> None:
+    """An ambiguous hex PREFIX raises AmbiguousIdError — it never falls to title."""
+    client = _client(
+        notebooks=[_NB("beef0001", "A"), _NB("beef0002", "B"), _NB("cafef00d", "beef")]
+    )
+    with pytest.raises(AmbiguousIdError) as caught:
+        await resolve_notebook(client, "beef")
+    assert set(caught.value.candidate_ids) == {"beef0001", "beef0002"}
+
+
+async def test_hex_token_matching_neither_id_nor_title_raises_not_found() -> None:
+    """A hex token that is neither an id-prefix nor a title still raises NotFound."""
+    client = _client(notebooks=[_NB("cafef00d", "Alpha")])
+    with pytest.raises(NotebookNotFoundError):
+        await resolve_notebook(client, "beef")
 
 
 # --------------------------------------------------------------------------- #
@@ -129,3 +178,9 @@ async def test_source_title_match_skips_none_titled() -> None:
     """A source with no title cannot match a title query."""
     client = _client(sources=[_Src("ab0001cdef", None), _Src("cd0002abef", "Real")])
     assert await resolve_source(client, "nb-1", "Real") == "cd0002abef"
+
+
+async def test_source_hex_only_title_falls_back_to_title() -> None:
+    """A source whose TITLE is all-hex resolves by name (id/prefix path misses)."""
+    client = _client(sources=[_Src("0000aaaa1111", "beef"), _Src("cd0002abef", "Notes")])
+    assert await resolve_source(client, "nb-1", "beef") == "0000aaaa1111"

@@ -11,7 +11,10 @@ Routing is by token shape:
 * A full canonical UUID is returned verbatim with **no list call** (so a tool
   invoked with a concrete id never pays for a list).
 * A hex-ish token (``^[0-9a-fA-F-]+$``) takes the id/prefix path via
-  ``resolve_ref`` against the listed items.
+  ``resolve_ref`` against the listed items, then **falls back to the title path**
+  if the id/prefix path finds nothing — so an item whose title is all-hex
+  (``"beef"``, ``"1234"``) is still reachable by name. An *ambiguous* hex prefix
+  raises :class:`AmbiguousIdError` and never falls through to title.
 * Anything else takes the title path: a case-insensitive exact match over the
   items' titles — 0 matches raises the public ``*NotFoundError``, >1 raises
   :class:`AmbiguousIdError` carrying the colliding ids.
@@ -63,8 +66,10 @@ def _resolve_by_title(
 
     Raises ``not_found(token)`` on 0 matches and :class:`AmbiguousIdError` on >1.
     """
-    token_lower = token.lower()
-    matches = [item for item in items if (item.title or "").lower() == token_lower]
+    # casefold (not lower) for correct non-ASCII case-insensitive matching, e.g.
+    # German ß folds to "ss" so "STRASSE" matches a title "Straße".
+    token_folded = token.casefold()
+    matches = [item for item in items if (item.title or "").casefold() == token_folded]
 
     if len(matches) == 1:
         return str(matches[0].id)
@@ -108,6 +113,36 @@ def _resolve_by_id_or_prefix(
     return resolution.id
 
 
+def _resolve_hex(
+    token: str,
+    items: Sequence[Any],
+    *,
+    not_found: type[NotebookNotFoundError | SourceNotFoundError],
+) -> str:
+    """Resolve a hex-ish ``token``, preferring id/prefix but falling back to title.
+
+    A token like ``"beef"`` / ``"1234"`` is BOTH a valid hex id-prefix shape AND a
+    plausible all-hex title. We keep id/prefix precedence (a concrete id must win),
+    but when the id/prefix path finds nothing we fall back to a title match before
+    giving up — otherwise an item titled with hex digits would be permanently
+    unreachable by name.
+
+    :class:`AmbiguousIdError` from an ambiguous prefix is **never** swallowed: it
+    propagates with its candidate ids so the caller can disambiguate, rather than
+    being reinterpreted as a (possibly-unrelated) title match.
+    """
+    try:
+        return _resolve_by_id_or_prefix(token, items, not_found=not_found)
+    except AmbiguousIdError:
+        # An ambiguous prefix is a real, actionable result — do NOT fall through to
+        # the title path; surface the candidates.
+        raise
+    except not_found:
+        # The id/prefix path found nothing. Try an exact-title match before failing
+        # so all-hex titles ("beef", "1234", "DEADBEEF") remain reachable by name.
+        return _resolve_by_title(token, items, not_found=not_found)
+
+
 async def resolve_notebook(client: NotebookLMClient, ref: str) -> str:
     """Resolve a notebook reference (full/partial id or exact title) to its id.
 
@@ -130,7 +165,7 @@ async def resolve_notebook(client: NotebookLMClient, ref: str) -> str:
         return ref
     items = await client.notebooks.list()
     if _HEX_ISH.match(ref):
-        return _resolve_by_id_or_prefix(ref, items, not_found=NotebookNotFoundError)
+        return _resolve_hex(ref, items, not_found=NotebookNotFoundError)
     return _resolve_by_title(ref, items, not_found=NotebookNotFoundError)
 
 
@@ -157,5 +192,5 @@ async def resolve_source(client: NotebookLMClient, notebook_id: str, ref: str) -
         return ref
     items = await client.sources.list(notebook_id)
     if _HEX_ISH.match(ref):
-        return _resolve_by_id_or_prefix(ref, items, not_found=SourceNotFoundError)
+        return _resolve_hex(ref, items, not_found=SourceNotFoundError)
     return _resolve_by_title(ref, items, not_found=SourceNotFoundError)

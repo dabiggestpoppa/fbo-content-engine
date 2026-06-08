@@ -27,6 +27,13 @@ a faithful copy of the hook so the regression test does NOT depend on importing
 the real conftest (which would also drag in unrelated infrastructure). The
 inlined hook is kept in lockstep with the real one — if the real hook's
 detection logic changes, update ``HOOK_SOURCE`` here too.
+
+The scenarios run via ``runpytest_subprocess`` (not in-process ``runpytest``):
+the synthetic project mirrors the real ``tests/`` package layout (with
+``__init__.py`` files), so an in-process run would collide with the parent
+session's already-imported ``tests.*`` modules in ``sys.modules`` and fail
+collection with ``ModuleNotFoundError``. A fresh subprocess isolates the
+synthetic ``tests`` package from the real one.
 """
 
 from __future__ import annotations

@@ -5,6 +5,7 @@ under its own basename; if that basename matches an installed distribution (e.g.
 the `mcp` SDK), it shadows it and breaks `import <name>` everywhere. See
 docs/plans/2026-06-08-mcp-server-redesign-design.md section 6.
 """
+
 from __future__ import annotations
 
 import importlib.util

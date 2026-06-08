@@ -52,8 +52,8 @@ from notebooklm._middleware.core import (
 )
 from notebooklm._middleware.tracing import TracingMiddleware
 
-# pytest puts ``tests/`` on ``sys.path``; ``_fixtures.chain`` is the canonical
-# import path documented in ``tests/_fixtures/__init__.py``.
+# The ``tests/`` package chain is complete; ``tests._fixtures.chain`` is the
+# fully-qualified import path documented in ``tests/_fixtures/__init__.py``.
 from tests._fixtures.chain import (
     FakeChainTerminal,
     chain_calls_through_to_terminal,

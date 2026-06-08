@@ -43,8 +43,8 @@ from notebooklm._middleware.core import (
 from notebooklm._middleware.metrics import MetricsMiddleware
 from notebooklm._types.common import RpcTelemetryEvent
 
-# pytest puts ``tests/`` on ``sys.path``; ``_fixtures.chain`` is the
-# canonical import path documented in ``tests/_fixtures/__init__.py``.
+# The ``tests/`` package chain is complete; ``tests._fixtures.chain`` is the
+# fully-qualified import path documented in ``tests/_fixtures/__init__.py``.
 from tests._fixtures.chain import make_request
 
 

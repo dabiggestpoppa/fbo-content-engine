@@ -119,7 +119,7 @@ git commit -m "test: guardrail forbidding test dirs that shadow installed packag
 - Create: `src/notebooklm/mcp/_errors.py`
 - Test: `tests/unit/mcp/__init__.py`, `tests/unit/mcp/test_errors.py`
 
-**`_errors.py`**: a `mcp_errors()` context manager / decorator that catches `NotebookLMError`, calls `_app.errors.classify(exc)`, and raises a FastMCP error carrying `{code, message, retriable, hint?}`. Build a `category → (code, hint)` table. Serialization is just `from ..._app.serialize import to_jsonable` (re-export from a `mcp/_serialize.py` shim if convenient).
+**`src/notebooklm/mcp/_errors.py`**: a `mcp_errors()` context manager / decorator that catches `NotebookLMError`, calls `_app.errors.classify(exc)`, and raises a FastMCP error carrying `{code, message, retriable, hint?}`. Build a `category → (code, hint)` table. Serialization is just `from ..._app.serialize import to_jsonable` (re-export from a `mcp/_serialize.py` shim if convenient).
 
 **Tests:** for an exemplar of every `ErrorCategory`, assert the projected code + retriable + hint. This is also the **consistency gate** seed.
 
@@ -159,7 +159,7 @@ Route hex-ish vs non-hex by a simple regex (`^[0-9a-fA-F-]+$`).
 - Create: `src/notebooklm/mcp/__main__.py` (`main()`: argparse `--profile/--transport/--host/--port/--log-level`; env `NOTEBOOKLM_PROFILE` etc.; **logs → stderr, stdout pure JSON-RPC**; loopback bind guard for http with `NOTEBOOKLM_MCP_ALLOW_EXTERNAL_BIND` override)
 - Test: `tests/unit/mcp/conftest.py` (in-memory `Client` + mocked `NotebookLMClient` fixture, per-namespace async mocks), `tests/unit/mcp/test_server.py` (server constructs; lifespan yields AppState; transport guard refuses non-loopback).
 
-Reference the prototype's `server.py`/`__main__.py`/`_context.py` for the lifespan shape. Commit.
+Reference the prototype's `server`/`__main__`/`_context` modules for the lifespan shape (`git show feat/mcp-server:src/notebooklm/mcp/server.py`). Commit.
 
 ### Task 1.7: Boundary guardrail
 

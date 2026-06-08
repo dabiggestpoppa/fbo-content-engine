@@ -12,4 +12,6 @@ This package imports NO ``click`` / ``rich`` / ``cli`` — it is built on the
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from .server import SERVER_INSTRUCTIONS, SERVER_NAME, create_server
+
+__all__ = ["SERVER_INSTRUCTIONS", "SERVER_NAME", "create_server"]

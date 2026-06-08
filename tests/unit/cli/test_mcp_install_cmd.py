@@ -119,3 +119,39 @@ def test_install_prints_path(runner: CliRunner, tmp_path: Path) -> None:
     result = runner.invoke(cli, ["mcp", "install", "cursor", "--config-path", str(cfg)])
     assert result.exit_code == 0
     assert str(cfg) in result.output
+
+
+def test_install_corrupt_config_errors_cleanly_without_clobber(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """A corrupt target config → friendly message + nonzero exit, file untouched.
+
+    The safe behavior is to refuse (raise, never clobber) — we do NOT enable
+    corrupt-config auto-recovery. The user must get a clean message instead of a
+    raw ``json.JSONDecodeError`` traceback (sibling CLI commands route errors
+    through ``cli/error_handler.py``).
+    """
+    cfg = tmp_path / "mcp.json"
+    garbage = "{ this is not valid json"
+    cfg.write_text(garbage, encoding="utf-8")
+
+    # ``catch_exceptions=False`` makes a raw, unhandled exception fail the test
+    # loudly — so this asserts the command actually handles the error itself
+    # (via cli/error_handler.py) rather than letting a JSONDecodeError escape.
+    result = runner.invoke(
+        cli,
+        ["mcp", "install", "cursor", "--config-path", str(cfg)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code != 0
+    # The error is handled cleanly — only a SystemExit (from handle_errors)
+    # surfaces, never the raw JSONDecodeError.
+    assert isinstance(result.exception, SystemExit)
+    # A friendly, user-facing message is emitted (handle_errors writes to
+    # stderr, which CliRunner folds into ``output``); no bare traceback leaks.
+    assert "Traceback" not in result.output
+    assert "JSONDecodeError" not in result.output
+    assert result.output.strip(), "expected a user-facing error message"
+    # The original corrupt file is preserved (not clobbered / recovered).
+    assert cfg.read_text(encoding="utf-8") == garbage

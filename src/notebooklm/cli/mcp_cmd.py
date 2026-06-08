@@ -29,6 +29,7 @@ from .._app.mcp_install import (
     resolve_config_path,
 )
 from ..io import atomic_update_json
+from .error_handler import handle_errors
 from .rendering import console
 
 __all__ = [
@@ -78,19 +79,30 @@ def install(client: str, config_path: Path | None) -> None:
     needs to be installed). Re-running is idempotent and never clobbers other
     servers or unrelated keys in the config file.
     """
-    target = config_path if config_path is not None else resolve_config_path(client)
+    # Route every failure through the shared CLI error handler so a corrupt
+    # target config (``json.JSONDecodeError``), a contended lock
+    # (``filelock.Timeout``), a filesystem error (``OSError``), or an
+    # unsupported client (``UnsupportedClientError`` / ``ValidationError``)
+    # surfaces as a friendly message + nonzero exit instead of a raw traceback.
+    # We deliberately do NOT pass ``recover_from_corrupt`` to
+    # ``atomic_update_json`` — refusing to clobber an unparseable file the
+    # client owns is the safe behavior; the user gets a clear error and an
+    # intact file rather than a silently-rewritten config.
+    with handle_errors():
+        target = config_path if config_path is not None else resolve_config_path(client)
 
-    # The merge is pure; running it as the atomic_update_json mutator makes the
-    # read-modify-write locked + crash-safe and preserves every other key. The
-    # action ("created"/"updated"/"unchanged") is captured out of the closure.
-    captured: dict[str, str] = {}
+        # The merge is pure; running it as the atomic_update_json mutator makes
+        # the read-modify-write locked + crash-safe and preserves every other
+        # key. The action ("created"/"updated"/"unchanged") is captured out of
+        # the closure.
+        captured: dict[str, str] = {}
 
-    def _mutate(current: dict[str, Any]) -> dict[str, Any]:
-        new_config, action = merge_server_config(current)
-        captured["action"] = action
-        return new_config
+        def _mutate(current: dict[str, Any]) -> dict[str, Any]:
+            new_config, action = merge_server_config(current)
+            captured["action"] = action
+            return new_config
 
-    atomic_update_json(target, _mutate)
+        atomic_update_json(target, _mutate)
 
     action = captured.get("action", "created")
     if action == "unchanged":

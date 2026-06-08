@@ -170,7 +170,7 @@ async def test_source_add_text(mcp_call, mock_client) -> None:
     mock_client.sources.add_text = AsyncMock(return_value=FakeSource(id=SRC_ID, title="Notes"))
     result = await mcp_call(
         "source_add",
-        {"notebook": NB_ID, "type": "text", "text": "hello world", "title": "Notes"},
+        {"notebook": NB_ID, "source_type": "text", "text": "hello world", "title": "Notes"},
     )
     assert result.structured_content == {"source": {"id": SRC_ID, "title": "Notes"}}
     mock_client.sources.add_text.assert_awaited_once_with(NB_ID, "Notes", "hello world")
@@ -179,7 +179,7 @@ async def test_source_add_text(mcp_call, mock_client) -> None:
 async def test_source_add_url(mcp_call, mock_client) -> None:
     mock_client.sources.add_url = AsyncMock(return_value=FakeSource(id=SRC_ID, title="Page"))
     result = await mcp_call(
-        "source_add", {"notebook": NB_ID, "type": "url", "url": "https://example.com/a"}
+        "source_add", {"notebook": NB_ID, "source_type": "url", "url": "https://example.com/a"}
     )
     assert result.structured_content == {"source": {"id": SRC_ID, "title": "Page"}}
     mock_client.sources.add_url.assert_awaited_once_with(NB_ID, "https://example.com/a")
@@ -191,7 +191,7 @@ async def test_source_add_drive(mcp_call, mock_client) -> None:
         "source_add",
         {
             "notebook": NB_ID,
-            "type": "drive",
+            "source_type": "drive",
             "document_id": "drivefile123",
             "title": "Sheet",
             "mime_type": "google-sheets",
@@ -213,7 +213,7 @@ async def test_source_add_drive(mcp_call, mock_client) -> None:
 async def test_source_add_missing_input_is_validation_error(mcp_call, mock_client) -> None:
     """type=url with no url projects as a VALIDATION ToolError."""
     with pytest.raises(ToolError) as excinfo:
-        await mcp_call("source_add", {"notebook": NB_ID, "type": "url"})
+        await mcp_call("source_add", {"notebook": NB_ID, "source_type": "url"})
     assert "VALIDATION" in str(excinfo.value)
 
 
@@ -225,7 +225,7 @@ async def test_source_add_drive_bad_mime_is_validation_error(mcp_call, mock_clie
             "source_add",
             {
                 "notebook": NB_ID,
-                "type": "drive",
+                "source_type": "drive",
                 "document_id": "drivefile123",
                 "mime_type": "bogus",
             },
@@ -261,7 +261,7 @@ async def test_source_add_youtube_rejects_non_youtube_url(mcp_call, mock_client)
     with pytest.raises(ToolError) as excinfo:
         await mcp_call(
             "source_add",
-            {"notebook": NB_ID, "type": "youtube", "url": "https://example.com/not-yt"},
+            {"notebook": NB_ID, "source_type": "youtube", "url": "https://example.com/not-yt"},
         )
     assert "VALIDATION" in str(excinfo.value)
     mock_client.sources.add_url.assert_not_called()
@@ -271,6 +271,6 @@ async def test_source_add_youtube_accepts_youtube_url(mcp_call, mock_client) -> 
     """type=youtube with a genuine YouTube URL is accepted."""
     yt = "https://www.youtube.com/watch?v=abc123"
     mock_client.sources.add_url = AsyncMock(return_value=FakeSource(id=SRC_ID, title="Vid"))
-    result = await mcp_call("source_add", {"notebook": NB_ID, "type": "youtube", "url": yt})
+    result = await mcp_call("source_add", {"notebook": NB_ID, "source_type": "youtube", "url": yt})
     assert result.structured_content == {"source": {"id": SRC_ID, "title": "Vid"}}
     mock_client.sources.add_url.assert_awaited_once_with(NB_ID, yt)

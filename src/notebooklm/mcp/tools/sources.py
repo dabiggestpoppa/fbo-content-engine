@@ -161,7 +161,7 @@ def register(mcp: Any) -> None:
     async def source_add(
         ctx: Context,
         notebook: str,
-        type: str,
+        source_type: str,
         url: str | None = None,
         text: str | None = None,
         title: str | None = None,
@@ -172,7 +172,7 @@ def register(mcp: Any) -> None:
     ) -> dict[str, Any]:
         """Add a source to a notebook. Accepts a notebook name or ID.
 
-        ``type`` selects the input and which named argument is required:
+        ``source_type`` selects the input and which named argument is required:
 
         * ``url``     — requires ``url``.
         * ``youtube`` — requires ``url`` (a YouTube link).
@@ -183,19 +183,19 @@ def register(mcp: Any) -> None:
           default google-doc) optional.
 
         The other named inputs are mutually exclusive — supply only the one your
-        ``type`` requires.
+        ``source_type`` requires.
         """
         client = get_client(ctx)
         with mcp_errors():
-            if type not in _SOURCE_TYPES:
+            if source_type not in _SOURCE_TYPES:
                 raise ValidationError(
-                    f"Unknown source type {type!r}; expected one of {list(_SOURCE_TYPES)}"
+                    f"Unknown source type {source_type!r}; expected one of {list(_SOURCE_TYPES)}"
                 )
             nb_id = await resolve_notebook(client, notebook)
 
-            if type == "drive":
+            if source_type == "drive":
                 if not document_id:
-                    raise ValidationError("type 'drive' requires 'document_id'")
+                    raise ValidationError("source_type 'drive' requires 'document_id'")
                 drive_result = await mut_core.execute_source_add_drive(
                     client,
                     mut_core.SourceAddDrivePlan(
@@ -207,10 +207,10 @@ def register(mcp: Any) -> None:
                 )
                 return to_jsonable(drive_result)
 
-            content = _select_content(type, url=url, text=text, path=path)
+            content = _select_content(source_type, url=url, text=text, path=path)
             plan = add_core.build_source_add_plan(
                 content=content,
-                source_type=type,  # type: ignore[arg-type]
+                source_type=source_type,  # type: ignore[arg-type]
                 title=title,
                 mime_type=mime_type,
                 follow_symlinks=False,
@@ -231,22 +231,23 @@ def _select_content(
     """Pick the single content value the ``source_type`` requires, validating presence."""
     if source_type in {"url", "youtube"}:
         if not url:
-            raise ValidationError(f"type {source_type!r} requires 'url'")
-        # ``type=youtube`` advertises a YouTube link — reject a non-YouTube host
-        # rather than silently adding it as a generic URL (host-parsed, not a
+            raise ValidationError(f"source_type {source_type!r} requires 'url'")
+        # ``source_type=youtube`` advertises a YouTube link — reject a non-YouTube
+        # host rather than silently adding it as a generic URL (host-parsed, not a
         # substring match: ``evil.com/youtube.com`` does NOT pass).
         if source_type == "youtube" and not is_youtube_url(url):
             raise ValidationError(
-                "type 'youtube' requires a YouTube URL (youtube.com / youtu.be / m.youtube.com)"
+                "source_type 'youtube' requires a YouTube URL "
+                "(youtube.com / youtu.be / m.youtube.com)"
             )
         return url
     if source_type == "text":
         if not text:
-            raise ValidationError("type 'text' requires 'text'")
+            raise ValidationError("source_type 'text' requires 'text'")
         return text
     if source_type == "file":
         if not path:
-            raise ValidationError("type 'file' requires 'path'")
+            raise ValidationError("source_type 'file' requires 'path'")
         return path
     raise ValidationError(f"Unknown source type {source_type!r}")  # pragma: no cover
 

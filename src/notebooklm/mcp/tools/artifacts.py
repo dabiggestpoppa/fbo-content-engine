@@ -231,7 +231,7 @@ def register(mcp: Any) -> None:
     async def artifact_generate(
         ctx: Context,
         notebook: str,
-        type: str,
+        artifact_type: str,
         source_ids: list[str] | None = None,
         instructions: str = "",
         language: str | None = None,
@@ -246,7 +246,8 @@ def register(mcp: Any) -> None:
         Non-blocking: returns immediately with a ``task_id``; poll
         ``artifact_status(notebook, task_id)`` until ``is_complete`` is true.
 
-        ``type`` selects the artifact kind (each routes to its own generator):
+        ``artifact_type`` selects the artifact kind (each routes to its own
+        generator):
 
         * ``audio``        — podcast-style overview (``audio_format``:
           deep-dive|brief|critique|debate, ``audio_length``: short|default|long).
@@ -260,16 +261,26 @@ def register(mcp: Any) -> None:
         * ``report``       — text report (``report_format``:
           briefing-doc|study-guide|blog-post|custom).
 
+        Only the options listed above are agent-controllable: ``audio``
+        (``audio_format``/``audio_length``), ``quiz``/``flashcards``
+        (``quantity``/``difficulty``), and ``report`` (``report_format``). The
+        other kinds — ``video``, ``cinematic-video``, ``slide-deck``,
+        ``infographic``, ``data-table``, and ``mind-map`` — use FIXED internal
+        defaults for their per-kind options (video format/style, deck
+        format/length, infographic orientation/detail, mind-map kind) and do NOT
+        expose them as settable parameters.
+
         ``source_ids`` (optional) scopes generation to specific sources; omit it
         to use every source. ``instructions`` is free-text guidance for kinds
-        that accept it. Each per-kind option defaults to the standard choice when
-        omitted.
+        that accept it. Each agent-controllable option defaults to the standard
+        choice when omitted.
         """
         client = get_client(ctx)
         with mcp_errors():
-            if type not in _GENERATE_TYPES:
+            if artifact_type not in _GENERATE_TYPES:
                 raise ValidationError(
-                    f"Unknown artifact type {type!r}; expected one of {list(_GENERATE_TYPES)}"
+                    f"Unknown artifact type {artifact_type!r}; "
+                    f"expected one of {list(_GENERATE_TYPES)}"
                 )
             # Validate ``language`` up front: the neutral generate core's default
             # language resolver returns the raw string unchecked (the CLI
@@ -278,7 +289,7 @@ def register(mcp: Any) -> None:
             if language is not None and not is_supported_language(language):
                 raise ValidationError(f"Unsupported language {language!r}")
             nb_id = await resolve_notebook(client, notebook)
-            raw_args: dict[str, Any] = dict(_KIND_DEFAULTS[type])
+            raw_args: dict[str, Any] = dict(_KIND_DEFAULTS[artifact_type])
             raw_args.update(
                 {
                     "notebook_id": nb_id,
@@ -306,7 +317,7 @@ def register(mcp: Any) -> None:
                         )
                     raw_args[key] = value
 
-            plan = generate_core.build_generation_plan(type, raw_args)
+            plan = generate_core.build_generation_plan(artifact_type, raw_args)
             result = await generate_core.execute_generation(
                 plan,
                 client,
@@ -334,24 +345,25 @@ def register(mcp: Any) -> None:
     async def artifact_download(
         ctx: Context,
         notebook: str,
-        type: str,
+        artifact_type: str,
         path: str,
-        format: str | None = None,
+        output_format: str | None = None,
     ) -> dict[str, Any]:
         """Download a generated artifact to a local path. Accepts a notebook name or ID.
 
-        ``type`` is one of audio|video|slide-deck|infographic|report|mind-map|
-        data-table|quiz|flashcards. ``path`` is the output file on the server host
-        (the latest artifact of that type is selected). ``format`` overrides the
-        default file format where supported: slide-deck → pdf|pptx;
-        quiz/flashcards → json|markdown|html.
+        ``artifact_type`` is one of audio|video|slide-deck|infographic|report|
+        mind-map|data-table|quiz|flashcards. ``path`` is the output file on the
+        server host (the latest artifact of that type is selected).
+        ``output_format`` overrides the default file format where supported:
+        slide-deck → pdf|pptx; quiz/flashcards → json|markdown|html.
         """
         client = get_client(ctx)
         with mcp_errors():
-            spec = _DOWNLOAD_SPECS.get(type)
+            spec = _DOWNLOAD_SPECS.get(artifact_type)
             if spec is None:
                 raise ValidationError(
-                    f"Unknown download type {type!r}; expected one of {sorted(_DOWNLOAD_SPECS)}"
+                    f"Unknown download type {artifact_type!r}; "
+                    f"expected one of {sorted(_DOWNLOAD_SPECS)}"
                 )
             nb_id = await resolve_notebook(client, notebook)
             args: dict[str, Any] = {
@@ -359,13 +371,16 @@ def register(mcp: Any) -> None:
                 "output_path": path,
                 "latest": True,
             }
-            if format is not None:
+            if output_format is not None:
                 if not spec.format_choices:
                     # The type has no format axis (audio/video/report/etc.); a
-                    # supplied ``format`` was previously dropped silently. Fail
-                    # with a clean VALIDATION so the caller learns it is unsupported.
-                    raise ValidationError(f"type {type!r} does not support a format option")
-                args[spec.format_param_name] = format
+                    # supplied ``output_format`` was previously dropped silently.
+                    # Fail with a clean VALIDATION so the caller learns it is
+                    # unsupported.
+                    raise ValidationError(
+                        f"artifact_type {artifact_type!r} does not support an output_format option"
+                    )
+                args[spec.format_param_name] = output_format
             plan = download_core.build_download_plan(spec, args, cwd=Path.cwd())
             result = await download_core.execute_download(
                 plan,

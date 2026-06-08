@@ -115,7 +115,7 @@ async def test_artifact_list_resolves_notebook_by_name(mcp_call, mock_client) ->
 
 async def test_artifact_generate_audio(mcp_call, mock_client) -> None:
     mock_client.artifacts.generate_audio = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
-    result = await mcp_call("artifact_generate", {"notebook": NB_ID, "type": "audio"})
+    result = await mcp_call("artifact_generate", {"notebook": NB_ID, "artifact_type": "audio"})
     assert result.structured_content["kind"] == "audio"
     assert result.structured_content["task_id"] == TASK_ID
     mock_client.artifacts.generate_audio.assert_awaited_once()
@@ -125,14 +125,14 @@ async def test_artifact_generate_audio(mcp_call, mock_client) -> None:
 
 async def test_artifact_generate_quiz_routes_to_quiz(mcp_call, mock_client) -> None:
     mock_client.artifacts.generate_quiz = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
-    result = await mcp_call("artifact_generate", {"notebook": NB_ID, "type": "quiz"})
+    result = await mcp_call("artifact_generate", {"notebook": NB_ID, "artifact_type": "quiz"})
     assert result.structured_content["kind"] == "quiz"
     mock_client.artifacts.generate_quiz.assert_awaited_once()
 
 
 async def test_artifact_generate_video_routes_to_video(mcp_call, mock_client) -> None:
     mock_client.artifacts.generate_video = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
-    await mcp_call("artifact_generate", {"notebook": NB_ID, "type": "video"})
+    await mcp_call("artifact_generate", {"notebook": NB_ID, "artifact_type": "video"})
     mock_client.artifacts.generate_video.assert_awaited_once()
 
 
@@ -140,7 +140,7 @@ async def test_artifact_generate_report_routes_to_report(mcp_call, mock_client) 
     mock_client.artifacts.generate_report = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
     await mcp_call(
         "artifact_generate",
-        {"notebook": NB_ID, "type": "report", "report_format": "study-guide"},
+        {"notebook": NB_ID, "artifact_type": "report", "report_format": "study-guide"},
     )
     mock_client.artifacts.generate_report.assert_awaited_once()
 
@@ -149,7 +149,7 @@ async def test_artifact_generate_passes_source_ids(mcp_call, mock_client) -> Non
     mock_client.artifacts.generate_audio = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
     await mcp_call(
         "artifact_generate",
-        {"notebook": NB_ID, "type": "audio", "source_ids": ["src-1", "src-2"]},
+        {"notebook": NB_ID, "artifact_type": "audio", "source_ids": ["src-1", "src-2"]},
     )
     kwargs = mock_client.artifacts.generate_audio.await_args.kwargs
     assert kwargs["source_ids"] == ("src-1", "src-2")
@@ -157,7 +157,7 @@ async def test_artifact_generate_passes_source_ids(mcp_call, mock_client) -> Non
 
 async def test_artifact_generate_unknown_type_is_validation_error(mcp_call, mock_client) -> None:
     with pytest.raises(ToolError) as excinfo:
-        await mcp_call("artifact_generate", {"notebook": NB_ID, "type": "bogus"})
+        await mcp_call("artifact_generate", {"notebook": NB_ID, "artifact_type": "bogus"})
     assert "VALIDATION" in str(excinfo.value)
 
 
@@ -166,7 +166,7 @@ async def test_artifact_generate_bad_enum_is_validation_error(mcp_call, mock_cli
     with pytest.raises(ToolError) as excinfo:
         await mcp_call(
             "artifact_generate",
-            {"notebook": NB_ID, "type": "report", "report_format": "nonsense"},
+            {"notebook": NB_ID, "artifact_type": "report", "report_format": "nonsense"},
         )
     assert "VALIDATION" in str(excinfo.value)
 
@@ -177,7 +177,7 @@ async def test_artifact_generate_bad_language_is_validation_error(mcp_call, mock
     with pytest.raises(ToolError) as excinfo:
         await mcp_call(
             "artifact_generate",
-            {"notebook": NB_ID, "type": "audio", "language": "klingon"},
+            {"notebook": NB_ID, "artifact_type": "audio", "language": "klingon"},
         )
     assert "VALIDATION" in str(excinfo.value)
     mock_client.artifacts.generate_audio.assert_not_called()
@@ -188,7 +188,7 @@ async def test_artifact_generate_valid_language_passes(mcp_call, mock_client) ->
     mock_client.artifacts.generate_audio = AsyncMock(return_value=FakeStatus(task_id=TASK_ID))
     result = await mcp_call(
         "artifact_generate",
-        {"notebook": NB_ID, "type": "audio", "language": "es"},
+        {"notebook": NB_ID, "artifact_type": "audio", "language": "es"},
     )
     assert result.structured_content["kind"] == "audio"
     mock_client.artifacts.generate_audio.assert_awaited_once()
@@ -213,7 +213,7 @@ async def test_artifact_generate_then_status_poll_shape(mcp_call, mock_client) -
     mock_client.artifacts.generate_audio = AsyncMock(
         return_value=FakeStatus(task_id=TASK_ID, status=GenerationState.PENDING, url=None)
     )
-    started = await mcp_call("artifact_generate", {"notebook": NB_ID, "type": "audio"})
+    started = await mcp_call("artifact_generate", {"notebook": NB_ID, "artifact_type": "audio"})
     task_id = started.structured_content["task_id"]
     assert task_id == TASK_ID
 
@@ -233,7 +233,9 @@ async def test_artifact_download_audio(mcp_call, mock_client, tmp_path) -> None:
     out = str(tmp_path / "out.mp3")
     mock_client.artifacts.list = AsyncMock(return_value=[_AUDIO_ARTIFACT])
     mock_client.artifacts.download_audio = AsyncMock(return_value=out)
-    result = await mcp_call("artifact_download", {"notebook": NB_ID, "type": "audio", "path": out})
+    result = await mcp_call(
+        "artifact_download", {"notebook": NB_ID, "artifact_type": "audio", "path": out}
+    )
     assert result.structured_content["outcome"] == "single_downloaded"
     assert result.structured_content["output_path"] == out
     mock_client.artifacts.download_audio.assert_awaited_once()
@@ -245,7 +247,7 @@ async def test_artifact_download_quiz_with_format(mcp_call, mock_client, tmp_pat
     mock_client.artifacts.download_quiz = AsyncMock(return_value=out)
     result = await mcp_call(
         "artifact_download",
-        {"notebook": NB_ID, "type": "quiz", "path": out, "format": "markdown"},
+        {"notebook": NB_ID, "artifact_type": "quiz", "path": out, "output_format": "markdown"},
     )
     assert result.structured_content["outcome"] == "single_downloaded"
     # The format kwarg flows through to the bound download coroutine.
@@ -254,7 +256,9 @@ async def test_artifact_download_quiz_with_format(mcp_call, mock_client, tmp_pat
 
 async def test_artifact_download_unknown_type_is_validation_error(mcp_call, mock_client) -> None:
     with pytest.raises(ToolError) as excinfo:
-        await mcp_call("artifact_download", {"notebook": NB_ID, "type": "bogus", "path": "/tmp/x"})
+        await mcp_call(
+            "artifact_download", {"notebook": NB_ID, "artifact_type": "bogus", "path": "/tmp/x"}
+        )
     assert "VALIDATION" in str(excinfo.value)
 
 
@@ -267,7 +271,7 @@ async def test_artifact_download_bad_format_for_supported_type_is_validation(
     with pytest.raises(ToolError) as excinfo:
         await mcp_call(
             "artifact_download",
-            {"notebook": NB_ID, "type": "quiz", "path": out, "format": "bogus"},
+            {"notebook": NB_ID, "artifact_type": "quiz", "path": out, "output_format": "bogus"},
         )
     assert "VALIDATION" in str(excinfo.value)
 
@@ -282,7 +286,7 @@ async def test_artifact_download_format_for_unsupported_type_is_validation(
     with pytest.raises(ToolError) as excinfo:
         await mcp_call(
             "artifact_download",
-            {"notebook": NB_ID, "type": "audio", "path": out, "format": "pdf"},
+            {"notebook": NB_ID, "artifact_type": "audio", "path": out, "output_format": "pdf"},
         )
     assert "VALIDATION" in str(excinfo.value)
     mock_client.artifacts.download_audio.assert_not_called()
@@ -291,7 +295,9 @@ async def test_artifact_download_format_for_unsupported_type_is_validation(
 async def test_artifact_download_no_artifacts(mcp_call, mock_client, tmp_path) -> None:
     out = str(tmp_path / "out.mp3")
     mock_client.artifacts.list = AsyncMock(return_value=[])
-    result = await mcp_call("artifact_download", {"notebook": NB_ID, "type": "audio", "path": out})
+    result = await mcp_call(
+        "artifact_download", {"notebook": NB_ID, "artifact_type": "audio", "path": out}
+    )
     assert result.structured_content["outcome"] == "no_artifacts"
 
 

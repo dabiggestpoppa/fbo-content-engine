@@ -128,6 +128,13 @@ def register(mcp: Any) -> None:
                     f"Research task {task_id!r} is not among notebook {nb_id}'s "
                     "research tasks; nothing to import. Check research_status."
                 )
+            # TOCTOU note: ``import_sources`` imports the sources from THIS
+            # ``poll_and_classify`` snapshot rather than re-fetching atomically, so
+            # a concurrent/external change to the task between the poll above and
+            # the import below could theoretically race. Acceptable here: research
+            # tasks are user-driven (no high-frequency concurrent mutation), and
+            # the per-source ``task_id`` guard above prevents cross-task wiring —
+            # we never import a *different* task's sources.
             imported = await client.research.import_sources(nb_id, task_id, status.sources)
             return {
                 "notebook_id": nb_id,

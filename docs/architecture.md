@@ -1099,9 +1099,15 @@ src/notebooklm/
 │   ├── server.py                # create_server(profile, client_factory): FastMCP server; lifespan binds one NotebookLMClient; register_all tool-registration seam
 │   ├── _context.py              # AppState dataclass + get_client(ctx) — the lifespan-bound client
 │   ├── _errors.py               # Structured tool-error projection (CATEGORY_TABLE/ERROR_CODES/mcp_errors/to_tool_error/tool_error_payload) over _app.errors.classify
-│   ├── _resolve.py              # resolve_notebook/resolve_source — name + partial-id resolution over _app.resolve plus exact-title matching
+│   ├── _resolve.py              # resolve_notebook/resolve_source/resolve_note — name + partial-id resolution over _app.resolve plus exact-title matching
 │   ├── _confirm.py              # needs_confirmation() both-mode envelope + READ_ONLY/DESTRUCTIVE ToolAnnotations
-│   └── _serialize.py            # Re-export of _app.serialize.to_jsonable for the MCP wire shape
+│   ├── _serialize.py            # Re-export of _app.serialize.to_jsonable for the MCP wire shape
+│   └── tools/                   # Per-domain tool modules; each exposes register(mcp) wired by server.register_all
+│       ├── __init__.py          # Tools package marker (no click/rich/cli)
+│       ├── notebooks.py         # notebook_list/create/describe/rename/delete over _app.notebooks
+│       ├── sources.py           # source_list/get_content/rename/delete/wait/add over _app.source_* (add: url/text/file/youtube via source_add, drive via source_mutations)
+│       ├── chat.py              # chat_ask (client.chat.ask) + chat_configure (_app.chat.execute_configure)
+│       └── notes.py             # note_create/list/update/delete over _app.notes
 ├── rpc/                         # RPC protocol layer
 │   ├── types.py                 # Method IDs and enums
 │   ├── encoder.py               # Request encoding

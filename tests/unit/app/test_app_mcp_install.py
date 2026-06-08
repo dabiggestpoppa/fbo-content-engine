@@ -75,10 +75,16 @@ def test_unknown_client_raises_unsupported() -> None:
         ("claude-desktop", "Linux", ".config/Claude/claude_desktop_config.json"),
         ("claude-code", "Darwin", ".claude.json"),
         ("claude-code", "Linux", ".claude.json"),
+        ("claude-code", "Windows", ".claude.json"),
+        # Cursor + Windsurf use a FIXED home-dir dotfile on EVERY OS (vendor docs:
+        # ~/.cursor/mcp.json and ~/.codeium/windsurf/mcp_config.json), so the
+        # path must NOT change with platform. Pinned on Darwin/Linux/Windows.
         ("cursor", "Darwin", ".cursor/mcp.json"),
-        ("cursor", "Linux", ".config/cursor/mcp.json"),
+        ("cursor", "Linux", ".cursor/mcp.json"),
+        ("cursor", "Windows", ".cursor/mcp.json"),
         ("windsurf", "Darwin", ".codeium/windsurf/mcp_config.json"),
-        ("windsurf", "Linux", ".config/codeium/windsurf/mcp_config.json"),
+        ("windsurf", "Linux", ".codeium/windsurf/mcp_config.json"),
+        ("windsurf", "Windows", ".codeium/windsurf/mcp_config.json"),
     ],
 )
 def test_resolve_config_path(client: str, system: str, expected_rel: str) -> None:
@@ -92,7 +98,7 @@ def test_resolve_config_path_defaults_to_real_home(monkeypatch: pytest.MonkeyPat
     fake_home = Path("/tmp/fakehome")
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
     got = resolve_config_path("cursor", system="Linux")
-    assert got == fake_home / ".config" / "cursor" / "mcp.json"
+    assert got == fake_home / ".cursor" / "mcp.json"
 
 
 # --------------------------------------------------------------------------- #

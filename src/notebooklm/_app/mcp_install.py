@@ -108,19 +108,22 @@ def _claude_code_path(system: str, home: Path) -> Path:
 
 
 def _cursor_path(system: str, home: Path) -> Path:
-    if system == "Windows":
-        return _windows_appdata_base(home) / "Cursor" / "User" / "mcp.json"
-    if system == "Darwin":
-        return home / ".cursor" / "mcp.json"
-    return home / ".config" / "cursor" / "mcp.json"
+    # Cursor reads global MCP servers from a FIXED home-dir dotfile on EVERY OS
+    # (macOS / Linux / Windows) — there is no XDG / %APPDATA% variant. Vendor
+    # docs (https://cursor.com/docs/context/mcp): "Create ~/.cursor/mcp.json in
+    # your home directory for tools available everywhere." The ``system`` arg is
+    # accepted to match the ``path_for`` signature but intentionally ignored.
+    return home / ".cursor" / "mcp.json"
 
 
 def _windsurf_path(system: str, home: Path) -> Path:
-    if system == "Windows":
-        return _windows_appdata_base(home) / "Codeium" / "windsurf" / "mcp_config.json"
-    if system == "Darwin":
-        return home / ".codeium" / "windsurf" / "mcp_config.json"
-    return home / ".config" / "codeium" / "windsurf" / "mcp_config.json"
+    # Windsurf (Codeium / Cascade) reads MCP servers from a FIXED home-dir
+    # dotfile on EVERY OS. Vendor docs
+    # (https://docs.windsurf.com/windsurf/cascade/mcp): "The
+    # ~/.codeium/windsurf/mcp_config.json file is a JSON file that contains a
+    # list of servers that Cascade can connect to." The ``system`` arg is
+    # accepted to match the ``path_for`` signature but intentionally ignored.
+    return home / ".codeium" / "windsurf" / "mcp_config.json"
 
 
 #: Catalog of supported clients, keyed by the CLI ``<client>`` argument.

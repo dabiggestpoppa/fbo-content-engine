@@ -52,12 +52,12 @@ def register_all(mcp: FastMCP) -> None:
     """Register every tool module on ``mcp``.
 
     Kept as a single chokepoint so the manifest guardrail has one place to reason
-    about the full tool set. Phase 2a wires the notebooks/sources/chat/notes
-    domains; artifacts/research/meta plug in additively in Phase 2b.
+    about the full tool set. Phase 2a wired the notebooks/sources/chat/notes
+    domains; Phase 2b added the artifacts/research/meta domains.
     """
-    from .tools import chat, notebooks, notes, sources
+    from .tools import artifacts, chat, meta, notebooks, notes, research, sources
 
-    for module in (notebooks, sources, chat, notes):
+    for module in (notebooks, sources, chat, notes, artifacts, research, meta):
         module.register(mcp)
 
 

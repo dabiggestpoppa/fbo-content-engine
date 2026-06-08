@@ -1107,7 +1107,10 @@ src/notebooklm/
 │       ├── notebooks.py         # notebook_list/create/describe/rename/delete over _app.notebooks
 │       ├── sources.py           # source_list/get_content/rename/delete/wait/add over _app.source_* (add: url/text/file/youtube via source_add, drive via source_mutations)
 │       ├── chat.py              # chat_ask (client.chat.ask) + chat_configure (_app.chat.execute_configure)
-│       └── notes.py             # note_create/list/update/delete over _app.notes
+│       ├── notes.py             # note_create/list/update/delete over _app.notes
+│       ├── artifacts.py         # artifact_list/generate/status/download (enum dispatch over _app.generate + _app.download; stateless poll via _app.artifacts.poll_artifact)
+│       ├── research.py          # research_start (client.research.start) + research_status (_app.research.poll_and_classify) + research_import
+│       └── meta.py              # server_info — package version + auth-health over _app.auth_check (no notebook arg)
 ├── rpc/                         # RPC protocol layer
 │   ├── types.py                 # Method IDs and enums
 │   ├── encoder.py               # Request encoding

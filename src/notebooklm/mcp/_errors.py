@@ -155,14 +155,24 @@ def to_tool_error(exc: BaseException) -> ToolError:
 
 @contextmanager
 def mcp_errors() -> Iterator[None]:
-    """Translate a ``NotebookLMError`` raised inside the block into a ``ToolError``.
+    """Translate any exception raised inside the block into a structured ``ToolError``.
 
-    Non-notebooklm exceptions propagate unchanged (FastMCP masks their details by
-    default); only the library's own hierarchy is mapped to the structured code.
+    A ``NotebookLMError`` maps onto its classified ``code``; any other
+    ``Exception`` is projected as ``UNEXPECTED`` (via ``classify`` + the table) so
+    the advertised structured contract holds even for a bug in a tool body —
+    nothing escapes ``mcp_errors()`` as a raw exception.
+
+    ``asyncio.CancelledError`` / ``KeyboardInterrupt`` / ``SystemExit`` subclass
+    ``BaseException`` (not ``Exception``), so ``except Exception`` deliberately
+    lets them propagate uncaught — cancellation and shutdown are never swallowed
+    into a ToolError.
+
     A context manager (not a decorator) is used deliberately so tool function
     signatures are preserved for FastMCP schema generation.
     """
     try:
         yield
     except NotebookLMError as exc:  # noqa: BLE001 - deliberate boundary translation
+        raise to_tool_error(exc) from exc
+    except Exception as exc:  # noqa: BLE001 - project unexpected bugs as UNEXPECTED
         raise to_tool_error(exc) from exc

@@ -16,12 +16,19 @@ ladders stay aligned.
 from __future__ import annotations
 
 import pytest
-from fastmcp.exceptions import ToolError
 
-from notebooklm import exceptions as exc
-from notebooklm._app import SourceMutationError
-from notebooklm._app.errors import ErrorCategory, classify
-from notebooklm.mcp._errors import (
+# Skip cleanly when the `mcp` extra (fastmcp) is absent; see conftest.py.
+pytest.importorskip("fastmcp")
+
+from fastmcp.exceptions import ToolError  # noqa: E402 - after importorskip guard
+
+from notebooklm import exceptions as exc  # noqa: E402 - after importorskip guard
+from notebooklm._app import SourceMutationError  # noqa: E402 - after importorskip guard
+from notebooklm._app.errors import (  # noqa: E402 - after importorskip guard
+    ErrorCategory,
+    classify,
+)
+from notebooklm.mcp._errors import (  # noqa: E402 - after importorskip guard
     CATEGORY_TABLE,
     ERROR_CODES,
     mcp_errors,
@@ -50,6 +57,11 @@ _EXEMPLARS: list[tuple[ErrorCategory, BaseException]] = [
 # The MCP code each neutral category projects onto, and whether it is retriable.
 # retriable mirrors ``_app.errors`` (rate-limit / server / timeout / network),
 # never re-derived here.
+# NOTE: this map is duplicated INTENTIONALLY from ``CATEGORY_TABLE`` (and from
+# ``test_mcp_classify_consistency.py``) as an INDEPENDENT ORACLE — do NOT "DRY" it
+# into a shared import. Hand-writing the expected projection is what lets the test
+# catch a wrong edit to the production table; importing the table would make it
+# tautological.
 _CATEGORY_TO_MCP_CODE: dict[ErrorCategory, str] = {
     ErrorCategory.NOT_FOUND: "NOT_FOUND",
     ErrorCategory.AUTH: "AUTH",
@@ -139,7 +151,25 @@ def test_mcp_errors_translates_notebooklm_error() -> None:
     assert "NOT_FOUND" in str(caught.value)
 
 
-def test_mcp_errors_passes_through_non_notebooklm() -> None:
-    """A non-library exception is NOT translated (FastMCP masks it itself)."""
-    with pytest.raises(RuntimeError), mcp_errors():
+def test_mcp_errors_wraps_unexpected_exception() -> None:
+    """A plain ``RuntimeError`` is wrapped into a ToolError with code UNEXPECTED.
+
+    Without this the advertised ``UNEXPECTED`` projection is never produced — a
+    non-library exception would escape ``mcp_errors()`` unwrapped.
+    """
+    with pytest.raises(ToolError) as caught, mcp_errors():  # noqa: PT012
         raise RuntimeError("boom")
+    assert "UNEXPECTED" in str(caught.value)
+
+
+def test_mcp_errors_propagates_base_exceptions() -> None:
+    """``CancelledError`` (a ``BaseException``) propagates uncaught — never wrapped.
+
+    ``except Exception`` deliberately does not catch ``asyncio.CancelledError`` /
+    ``KeyboardInterrupt`` / ``SystemExit`` so cancellation/shutdown is never
+    swallowed into a ToolError.
+    """
+    import asyncio
+
+    with pytest.raises(asyncio.CancelledError), mcp_errors():
+        raise asyncio.CancelledError

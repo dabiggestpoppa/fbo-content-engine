@@ -25,7 +25,8 @@ from ..._app import source_content as content_core
 from ..._app import source_mutations as mut_core
 from ..._app import source_wait as wait_core
 from ..._app.serialize import to_jsonable
-from ...exceptions import ValidationError
+from ...exceptions import SourceNotFoundError, ValidationError
+from ...urls import is_youtube_url
 from .._confirm import DESTRUCTIVE, READ_ONLY, needs_confirmation
 from .._context import get_client
 from .._errors import mcp_errors
@@ -63,6 +64,12 @@ def register(mcp: Any) -> None:
             result = await content_core.execute_source_get(
                 client, content_core.SourceGetPlan(notebook_id=nb_id, source_id=src_id)
             )
+            # A full-UUID ref skips list resolution (the resolver trusts a full
+            # id), so a non-existent id reaches ``get_or_none`` and yields a
+            # ``None`` source. Surface that as NOT_FOUND rather than returning
+            # ``{"source": null}`` as a success.
+            if result.source is None:
+                raise SourceNotFoundError(src_id)
             return to_jsonable(result)
 
     @mcp.tool
@@ -141,7 +148,13 @@ def register(mcp: Any) -> None:
                 return _wait_outcome_payload(nb_id, outcome)
             sources = await client.sources.list(nb_id)
             source_ids = [s.id for s in sources]
-            ready = await client.sources.wait_for_sources(nb_id, source_ids, timeout=timeout)
+            # ``wait_for_sources`` forwards **kwargs to ``wait_until_ready``,
+            # whose poll-interval kwarg is ``initial_interval`` — thread the
+            # advertised ``interval`` through so the all-sources branch honors it
+            # just like the single-source branch above.
+            ready = await client.sources.wait_for_sources(
+                nb_id, source_ids, timeout=timeout, initial_interval=interval
+            )
             return {"notebook_id": nb_id, "ready": to_jsonable(ready)}
 
     @mcp.tool
@@ -219,6 +232,13 @@ def _select_content(
     if source_type in {"url", "youtube"}:
         if not url:
             raise ValidationError(f"type {source_type!r} requires 'url'")
+        # ``type=youtube`` advertises a YouTube link — reject a non-YouTube host
+        # rather than silently adding it as a generic URL (host-parsed, not a
+        # substring match: ``evil.com/youtube.com`` does NOT pass).
+        if source_type == "youtube" and not is_youtube_url(url):
+            raise ValidationError(
+                "type 'youtube' requires a YouTube URL (youtube.com / youtu.be / m.youtube.com)"
+            )
         return url
     if source_type == "text":
         if not text:

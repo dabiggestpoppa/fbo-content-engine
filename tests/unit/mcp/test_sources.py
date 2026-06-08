@@ -132,7 +132,19 @@ async def test_source_wait_all_sources(mcp_call, mock_client) -> None:
         "ready": [{"id": SRC_ID, "title": "A"}, {"id": SRC2_ID, "title": "B"}],
     }
     mock_client.sources.wait_for_sources.assert_awaited_once_with(
-        NB_ID, [SRC_ID, SRC2_ID], timeout=120.0
+        NB_ID, [SRC_ID, SRC2_ID], timeout=120.0, initial_interval=1.0
+    )
+
+
+async def test_source_wait_all_sources_forwards_interval(mcp_call, mock_client) -> None:
+    """The all-sources branch honors the advertised ``interval`` (was dropped)."""
+    mock_client.sources.list = AsyncMock(return_value=[FakeSource(id=SRC_ID)])
+    mock_client.sources.wait_for_sources = AsyncMock(
+        return_value=[FakeSource(id=SRC_ID, title="A")]
+    )
+    await mcp_call("source_wait", {"notebook": NB_ID, "timeout": 30.0, "interval": 3.0})
+    mock_client.sources.wait_for_sources.assert_awaited_once_with(
+        NB_ID, [SRC_ID], timeout=30.0, initial_interval=3.0
     )
 
 
@@ -230,3 +242,35 @@ async def test_source_get_content_not_found_projects_tool_error(mcp_call, mock_c
     with pytest.raises(ToolError) as excinfo:
         await mcp_call("source_get_content", {"notebook": NB_ID, "source": SRC_ID})
     assert "NOT_FOUND" in str(excinfo.value)
+
+
+async def test_source_get_content_missing_full_uuid_projects_not_found(
+    mcp_call, mock_client
+) -> None:
+    """A full-UUID ref skips list resolution; a None get_or_none must NOT return
+    {"source": null} as success — it projects NOT_FOUND."""
+    mock_client.sources.get_or_none = AsyncMock(return_value=None)
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call("source_get_content", {"notebook": NB_ID, "source": SRC_ID})
+    assert "NOT_FOUND" in str(excinfo.value)
+
+
+async def test_source_add_youtube_rejects_non_youtube_url(mcp_call, mock_client) -> None:
+    """type=youtube with a non-YouTube URL projects as VALIDATION."""
+    mock_client.sources.add_url = AsyncMock(return_value=FakeSource(id=SRC_ID, title="Page"))
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call(
+            "source_add",
+            {"notebook": NB_ID, "type": "youtube", "url": "https://example.com/not-yt"},
+        )
+    assert "VALIDATION" in str(excinfo.value)
+    mock_client.sources.add_url.assert_not_called()
+
+
+async def test_source_add_youtube_accepts_youtube_url(mcp_call, mock_client) -> None:
+    """type=youtube with a genuine YouTube URL is accepted."""
+    yt = "https://www.youtube.com/watch?v=abc123"
+    mock_client.sources.add_url = AsyncMock(return_value=FakeSource(id=SRC_ID, title="Vid"))
+    result = await mcp_call("source_add", {"notebook": NB_ID, "type": "youtube", "url": yt})
+    assert result.structured_content == {"source": {"id": SRC_ID, "title": "Vid"}}
+    mock_client.sources.add_url.assert_awaited_once_with(NB_ID, yt)

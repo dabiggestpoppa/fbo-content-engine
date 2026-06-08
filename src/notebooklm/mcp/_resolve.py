@@ -97,6 +97,9 @@ def _resolve_by_id_or_prefix(
             title_of=lambda item: item.title,
         )
     except AmbiguousIdError:
+        # AmbiguousIdError subclasses ValidationError, so it MUST be caught and
+        # re-raised before the ValidationError branch below — otherwise an
+        # ambiguous prefix would be silently rewritten into a NotFound.
         raise
     except ValidationError as exc:
         # resolve_ref raises a bare ValidationError on no-match; surface it as the

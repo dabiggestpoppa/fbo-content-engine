@@ -120,7 +120,7 @@ def test_violation_rejected(pytester: pytest.Pytester) -> None:
             """
         ).strip(),
     )
-    result = pytester.runpytest("tests/integration/")
+    result = pytester.runpytest_subprocess("tests/integration/")
     # ``UsageError`` from a collection hook ends the run with exit code != 0
     # and the message printed to stderr.
     assert result.ret != 0
@@ -145,7 +145,7 @@ def test_allow_no_vcr_optout_honored(pytester: pytest.Pytester) -> None:
             """
         ).strip(),
     )
-    result = pytester.runpytest("tests/integration/")
+    result = pytester.runpytest_subprocess("tests/integration/")
     assert result.ret == 0
     result.assert_outcomes(passed=1)
 
@@ -166,7 +166,7 @@ def test_vcr_marker_honored(pytester: pytest.Pytester) -> None:
             """
         ).strip(),
     )
-    result = pytester.runpytest("tests/integration/")
+    result = pytester.runpytest_subprocess("tests/integration/")
     assert result.ret == 0
     result.assert_outcomes(passed=1)
 
@@ -208,7 +208,7 @@ def test_use_cassette_decorator_honored(pytester: pytest.Pytester) -> None:
             ).strip(),
         }
     )
-    result = pytester.runpytest("tests/integration/")
+    result = pytester.runpytest_subprocess("tests/integration/")
     assert result.ret == 0
     result.assert_outcomes(passed=1)
 
@@ -232,6 +232,6 @@ def test_unit_tier_not_gated(pytester: pytest.Pytester) -> None:
             ).strip(),
         }
     )
-    result = pytester.runpytest("tests/unit/")
+    result = pytester.runpytest_subprocess("tests/unit/")
     assert result.ret == 0
     result.assert_outcomes(passed=1)

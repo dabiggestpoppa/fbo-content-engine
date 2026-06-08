@@ -23,6 +23,7 @@ This module is transport-neutral — no ``click`` / ``rich`` / ``cli`` /
 from __future__ import annotations
 
 import copy
+import os
 import platform as _platform
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -84,17 +85,18 @@ class McpClient:
     path_for: Callable[[str, Path], Path]
 
 
+def _windows_appdata_base(home: Path) -> Path:
+    """Windows roaming-config base: ``%APPDATA%`` (already ``...\\AppData\\Roaming``),
+    falling back to that path under ``home`` when the env var is unset."""
+    appdata = os.environ.get("APPDATA")
+    return Path(appdata) if appdata else home / "AppData" / "Roaming"
+
+
 def _claude_desktop_path(system: str, home: Path) -> Path:
     if system == "Darwin":
         return home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
     if system == "Windows":
-        # %APPDATA%\Claude\claude_desktop_config.json — APPDATA already points at
-        # ...\AppData\Roaming; fall back to that path under home when unset.
-        import os
-
-        appdata = os.environ.get("APPDATA")
-        base = Path(appdata) if appdata else home / "AppData" / "Roaming"
-        return base / "Claude" / "claude_desktop_config.json"
+        return _windows_appdata_base(home) / "Claude" / "claude_desktop_config.json"
     # Linux / other POSIX.
     return home / ".config" / "Claude" / "claude_desktop_config.json"
 
@@ -107,11 +109,7 @@ def _claude_code_path(system: str, home: Path) -> Path:
 
 def _cursor_path(system: str, home: Path) -> Path:
     if system == "Windows":
-        import os
-
-        appdata = os.environ.get("APPDATA")
-        base = Path(appdata) if appdata else home / "AppData" / "Roaming"
-        return base / "Cursor" / "User" / "mcp.json"
+        return _windows_appdata_base(home) / "Cursor" / "User" / "mcp.json"
     if system == "Darwin":
         return home / ".cursor" / "mcp.json"
     return home / ".config" / "cursor" / "mcp.json"
@@ -119,11 +117,7 @@ def _cursor_path(system: str, home: Path) -> Path:
 
 def _windsurf_path(system: str, home: Path) -> Path:
     if system == "Windows":
-        import os
-
-        appdata = os.environ.get("APPDATA")
-        base = Path(appdata) if appdata else home / "AppData" / "Roaming"
-        return base / "Codeium" / "windsurf" / "mcp_config.json"
+        return _windows_appdata_base(home) / "Codeium" / "windsurf" / "mcp_config.json"
     if system == "Darwin":
         return home / ".codeium" / "windsurf" / "mcp_config.json"
     return home / ".config" / "codeium" / "windsurf" / "mcp_config.json"

@@ -31,6 +31,7 @@ class FakeResearchStatus(str, Enum):
     NO_RESEARCH = "no_research"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    NOT_FOUND = "not_found"
 
 
 @dataclass
@@ -118,7 +119,26 @@ async def test_research_status_in_progress(mcp_call, mock_client) -> None:
     assert result.structured_content["notebook_id"] == NB_ID
     assert result.structured_content["status"] == "in_progress"
     assert result.structured_content["kind"] == "in_progress"
-    mock_client.research.poll.assert_awaited_once_with(NB_ID)
+    mock_client.research.poll.assert_awaited_once_with(NB_ID, None)
+
+
+async def test_research_status_surfaces_task_id(mcp_call, mock_client) -> None:
+    """status must surface ``task_id`` so an agent can later import that task."""
+    mock_client.research.poll = AsyncMock(
+        return_value=FakeResearchTask(status=FakeResearchStatus.COMPLETED, task_id=TASK_ID)
+    )
+    result = await mcp_call("research_status", {"notebook": NB_ID})
+    assert result.structured_content["task_id"] == TASK_ID
+
+
+async def test_research_status_pins_task_id_when_given(mcp_call, mock_client) -> None:
+    """A supplied ``task_id`` is threaded through ``poll`` as the discriminator."""
+    mock_client.research.poll = AsyncMock(
+        return_value=FakeResearchTask(status=FakeResearchStatus.COMPLETED, task_id=TASK_ID)
+    )
+    result = await mcp_call("research_status", {"notebook": NB_ID, "task_id": TASK_ID})
+    assert result.structured_content["task_id"] == TASK_ID
+    mock_client.research.poll.assert_awaited_once_with(NB_ID, TASK_ID)
 
 
 async def test_research_status_completed_with_sources(mcp_call, mock_client) -> None:
@@ -143,16 +163,43 @@ async def test_research_import(mcp_call, mock_client) -> None:
         return_value=FakeResearchTask(
             status=FakeResearchStatus.COMPLETED,
             sources=[FakeSource(url="http://a", title="A")],
+            task_id=TASK_ID,
         )
     )
     mock_client.research.import_sources = AsyncMock(return_value=[{"id": "src-1", "title": "A"}])
     result = await mcp_call("research_import", {"notebook": NB_ID, "task_id": TASK_ID})
     assert result.structured_content["notebook_id"] == NB_ID
     assert result.structured_content["imported"] == [{"id": "src-1", "title": "A"}]
+    # The requested task_id is threaded through ``poll`` as the discriminator so
+    # the freshly-polled sources belong to that task (not the notebook's current
+    # task).
+    mock_client.research.poll.assert_awaited_once_with(NB_ID, TASK_ID)
     mock_client.research.import_sources.assert_awaited_once()
     called = mock_client.research.import_sources.await_args.args
     assert called[0] == NB_ID
     assert called[1] == TASK_ID
+
+
+async def test_research_import_non_current_task_fails_cleanly(mcp_call, mock_client) -> None:
+    """Importing a task_id that is not among the polled tasks must NOT silently
+    import the current task's sources — it raises a clean error instead."""
+    other_task = "research-task-OTHER"
+    # Polling the notebook with the requested (non-current) task_id yields a
+    # NOT_FOUND sentinel carrying the requested id and no sources.
+    mock_client.research.poll = AsyncMock(
+        return_value=FakeResearchTask(
+            status=FakeResearchStatus.NOT_FOUND,
+            sources=[],
+            task_id=other_task,
+        )
+    )
+    mock_client.research.import_sources = AsyncMock(return_value=[])
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call("research_import", {"notebook": NB_ID, "task_id": other_task})
+    # A clean validation/not-found projection — never a silent cross-wire import.
+    msg = str(excinfo.value)
+    assert "VALIDATION" in msg or "NOT_FOUND" in msg
+    mock_client.research.import_sources.assert_not_called()
 
 
 async def test_research_start_then_status_poll_shape(mcp_call, mock_client) -> None:

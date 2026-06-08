@@ -30,6 +30,7 @@ from fastmcp import Context
 
 from ..._app import research as research_core
 from ..._app.serialize import to_jsonable
+from ...exceptions import ValidationError
 from .._confirm import READ_ONLY
 from .._context import get_client
 from .._errors import mcp_errors
@@ -67,18 +68,30 @@ def register(mcp: Any) -> None:
             return {"notebook_id": nb_id, **to_jsonable(result)}
 
     @mcp.tool(annotations=READ_ONLY)
-    async def research_status(ctx: Context, notebook: str) -> dict[str, Any]:
+    async def research_status(
+        ctx: Context, notebook: str, task_id: str | None = None
+    ) -> dict[str, Any]:
         """Check a notebook's research status. Accepts a notebook name or ID.
 
-        Returns ``status`` (no_research|in_progress|completed) plus the found
-        ``sources`` and any ``report`` once complete. Poll until ``completed``.
+        Returns ``status`` (no_research|in_progress|completed|not_found), the
+        polled ``task_id``, plus the found ``sources`` and any ``report`` once
+        complete. Poll until ``completed``, then pass the returned ``task_id`` to
+        ``research_import``.
+
+        ``task_id`` (optional) pins a specific task when several research tasks
+        are in flight in the notebook — pass the value from ``research_start``.
+        Omit it for a single in-flight task; when omitted with two or more tasks
+        running, the poll is ambiguous and errors (pass ``task_id`` to select).
+        A pinned ``task_id`` that is not among the polled tasks reports
+        ``status="not_found"``.
         """
         client = get_client(ctx)
         with mcp_errors():
             nb_id = await resolve_notebook(client, notebook)
-            result = await research_core.poll_and_classify(client, nb_id)
+            result = await research_core.poll_and_classify(client, nb_id, task_id)
             return {
                 "notebook_id": nb_id,
+                "task_id": result.task_id,
                 "kind": result.kind,
                 "status": result.status,
                 "query": result.query,
@@ -91,14 +104,30 @@ def register(mcp: Any) -> None:
     async def research_import(ctx: Context, notebook: str, task_id: str) -> dict[str, Any]:
         """Import a completed research task's sources into the notebook.
 
-        Accepts a notebook name or ID and the ``task_id`` from ``research_start``.
-        Polls the notebook's completed research for its found sources and imports
-        them; returns the imported sources (verify with ``source_list``).
+        Accepts a notebook name or ID and the ``task_id`` from ``research_start``
+        / ``research_status``.
+
+        The supplied ``task_id`` is the task discriminator: the notebook is
+        polled FOR THAT TASK so only its found sources are imported — never the
+        notebook's current (possibly different) research task's sources. If the
+        requested task is not among the notebook's polled tasks, the import
+        fails cleanly (``not_found``) rather than silently importing the wrong
+        task's sources. Returns the imported sources (verify with ``source_list``).
         """
         client = get_client(ctx)
         with mcp_errors():
             nb_id = await resolve_notebook(client, notebook)
-            status = await research_core.poll_and_classify(client, nb_id)
+            # Poll FOR THE REQUESTED task so the polled sources belong to it.
+            # ``poll`` returns the typed ``NOT_FOUND`` sentinel (status
+            # ``not_found``) when the pinned task is not among the polled
+            # results — guard against that here so we never fall back to
+            # importing whatever the notebook's current task happens to be.
+            status = await research_core.poll_and_classify(client, nb_id, task_id)
+            if status.status == "not_found":
+                raise ValidationError(
+                    f"Research task {task_id!r} is not among notebook {nb_id}'s "
+                    "research tasks; nothing to import. Check research_status."
+                )
             imported = await client.research.import_sources(nb_id, task_id, status.sources)
             return {
                 "notebook_id": nb_id,

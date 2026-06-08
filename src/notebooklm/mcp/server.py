@@ -55,9 +55,9 @@ def register_all(mcp: FastMCP) -> None:
     about the full tool set. Phase 2a wires the notebooks/sources/chat/notes
     domains; artifacts/research/meta plug in additively in Phase 2b.
     """
-    from .tools import notebooks, sources
+    from .tools import chat, notebooks, sources
 
-    for module in (notebooks, sources):
+    for module in (notebooks, sources, chat):
         module.register(mcp)
 
 

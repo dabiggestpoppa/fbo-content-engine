@@ -332,6 +332,20 @@ notebooklm skill install               # writes ~/.claude/skills/notebooklm/, ~/
 
 Optional — only needed if your agent harness reads from those directories and the skill isn't already present.
 
+### Running the MCP server (`mcp` extra)
+
+The MCP server ships behind the optional `mcp` extra (see the extras matrix above) and exposes the same `_app/` business logic over the Model Context Protocol.
+
+<!-- not mirrored: end-user MCP run/config pointer; out of scope for the contributor README -->
+```bash
+notebooklm-mcp                                         # installed console script (stdio transport)
+uvx --from "notebooklm-py[mcp]" notebooklm-mcp         # no install — run straight from PyPI
+```
+
+Wire it into an MCP client with either:
+- `notebooklm mcp install <client>` — auto-writes the server config for `claude-desktop`, `claude-code`, `cursor`, or `windsurf`; or
+- the one-click `.mcpb` desktop bundle built from `desktop-extension/` (Claude Desktop's "Install Extension").
+
 ---
 
 ## Verifying your install

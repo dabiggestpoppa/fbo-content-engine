@@ -50,9 +50,16 @@ def _load_run_server() -> ModuleType:
 def test_manifest_is_valid_json_with_required_keys() -> None:
     data = json.loads(_MANIFEST.read_text(encoding="utf-8"))
 
-    # DXT/.mcpb required top-level keys.
+    # DXT/.mcpb required top-level keys (mcpb MANIFEST spec v0.3).
     for key in ("manifest_version", "name", "version", "description", "author", "server"):
         assert key in data, f"manifest.json missing required key: {key!r}"
+
+    # author.name is the only REQUIRED author subfield in the spec.
+    assert data["author"]["name"], "manifest author.name is required by the mcpb spec"
+
+    # Current mcpb/DXT spec is 0.3
+    # (https://github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md).
+    assert data["manifest_version"] == "0.3"
 
     # Server block points at the bundled launcher, run under python3.
     server = data["server"]
@@ -61,6 +68,22 @@ def test_manifest_is_valid_json_with_required_keys() -> None:
     mcp_config = server["mcp_config"]
     assert mcp_config["command"] == "python3"
     assert mcp_config["args"] == ["${__dirname}/run_server.py"]
+
+
+def test_manifest_has_win32_command_override() -> None:
+    """Windows often lacks ``python3``; a platform override must launch ``python``.
+
+    Without this override ``mcp_config.command == "python3"`` fails to launch the
+    bundled extension on Windows. The mcpb spec supports per-platform overrides
+    under ``mcp_config.platform_overrides`` (key ``win32``).
+    """
+    data = json.loads(_MANIFEST.read_text(encoding="utf-8"))
+    mcp_config = data["server"]["mcp_config"]
+    overrides = mcp_config.get("platform_overrides")
+    assert isinstance(overrides, dict), "mcp_config.platform_overrides must be present"
+    assert overrides.get("win32", {}).get("command") == "python", (
+        "Windows override must launch 'python' (python3 is frequently absent on Windows)"
+    )
 
 
 def test_manifest_describes_this_package_not_the_competitor() -> None:

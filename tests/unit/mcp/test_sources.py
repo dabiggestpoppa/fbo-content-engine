@@ -205,6 +205,23 @@ async def test_source_add_missing_input_is_validation_error(mcp_call, mock_clien
     assert "VALIDATION" in str(excinfo.value)
 
 
+async def test_source_add_drive_bad_mime_is_validation_error(mcp_call, mock_client) -> None:
+    """A bogus drive mime_type projects as VALIDATION (not UNEXPECTED)."""
+    mock_client.sources.add_drive = AsyncMock(return_value=FakeSource(id=SRC_ID))
+    with pytest.raises(ToolError) as excinfo:
+        await mcp_call(
+            "source_add",
+            {
+                "notebook": NB_ID,
+                "type": "drive",
+                "document_id": "drivefile123",
+                "mime_type": "bogus",
+            },
+        )
+    assert "VALIDATION" in str(excinfo.value)
+    mock_client.sources.add_drive.assert_not_called()
+
+
 async def test_source_get_content_not_found_projects_tool_error(mcp_call, mock_client) -> None:
     def _raise(*_a: Any, **_k: Any) -> Any:
         raise SourceNotFoundError(SRC_ID)

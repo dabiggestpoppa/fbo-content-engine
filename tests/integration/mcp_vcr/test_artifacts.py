@@ -5,18 +5,16 @@ shape (``{"notebook_id", "artifacts": [...]}``). ``client.artifacts.list``
 issues ``LIST_ARTIFACTS`` (``gArtLc``) + the note-backed mind-map merge
 ``GET_NOTES_AND_MIND_MAPS`` (``cFji9``), both recorded in the cassette.
 
-The tool is invoked with the cassette's recorded full-UUID notebook id so the
-resolver skips its ``LIST_NOTEBOOKS`` preflight.
+``artifact_download`` over ``artifacts_download_report.yaml`` — the typed
+``DownloadResult`` wire shape, end-to-end, with the report file actually written.
+This pairing was originally DROPPED because the download path issued
+``LIST_ARTIFACTS`` (``gArtLc``) *twice* (the executor listed to select, then
+``download_report`` re-listed), which can't replay against a single-``gArtLc``
+cassette. #1488 collapsed that to a single list (the executor threads the
+already-fetched rows into the download method), so the shape now replays cleanly.
 
-(An ``artifact_download`` test was DELIBERATELY DROPPED: the
-``_app.download.execute_download`` flow lists artifacts to select the latest
-(``client.artifacts.list`` → ``gArtLc`` + ``cFji9``) AND then re-lists inside
-``download_report`` (``gArtLc``), so it issues ``gArtLc`` *twice* — but every
-``artifacts_download_*`` cassette holds only one ``gArtLc`` interaction. The CLI
-``cli_vcr`` download tests only pass because ``assert_command_success`` tolerates
-the resulting exit-1; this suite asserts the *real* serialized wire shape, which
-that pairing cannot satisfy without re-recording. Per the reuse-only discipline,
-the download shape is dropped rather than forced.)
+The tools are invoked with a full-UUID notebook id so the resolver skips its
+``LIST_NOTEBOOKS`` preflight.
 """
 
 from __future__ import annotations
@@ -63,3 +61,34 @@ async def test_mcp_artifact_list_over_vcr() -> None:
     assert "title" in first
     assert isinstance(first.get("_artifact_type"), int), "missing decoded artifact-type code"
     assert isinstance(first.get("status"), int), "missing decoded status code"
+
+
+@pytest.mark.asyncio
+@notebooklm_vcr.use_cassette("artifacts_download_report.yaml")
+async def test_mcp_artifact_download_over_vcr(tmp_path) -> None:
+    """``artifact_download`` selects + writes the latest report through the real client.
+
+    End-to-end: FastMCP ``Client`` → ``artifact_download`` tool →
+    ``execute_download`` (single ``LIST_ARTIFACTS`` post-#1488) →
+    ``client.artifacts.download_report`` → recorded download RPC. Asserts the
+    typed ``DownloadResult`` wire shape AND that the file was really written
+    (a re-introduced double-list would fail the replay, not silently pass).
+    """
+    out = tmp_path / "report.md"
+    async with build_mcp_client() as mcp_client:
+        result = await mcp_client.call_tool(
+            "artifact_download",
+            {
+                "notebook": ARTIFACT_NOTEBOOK_ID,
+                "artifact_type": "report",
+                "path": str(out),
+            },
+        )
+
+    structured = result.structured_content
+    assert isinstance(structured, dict)
+    assert structured["outcome"] == "single_downloaded", structured
+    assert not structured.get("is_failure"), structured
+    assert structured.get("error") is None, structured
+    assert structured.get("output_path"), structured
+    assert out.exists() and out.stat().st_size > 0, "the report file was not written"

@@ -71,6 +71,12 @@ def mock_client() -> MagicMock:
     client = MagicMock()
     for namespace in _NAMESPACES:
         setattr(client, namespace, MagicMock())
+    # `_app.download.execute_download` probes `client.artifacts._list_for_download`
+    # (the #1488 raw-rows fast path). A bare MagicMock auto-vivifies it as a
+    # truthy, non-awaitable attr; pin it to None so download tests exercise the
+    # public `.list` fallback they mock (the fast path is covered by the _app
+    # download tests, which use the real client).
+    client.artifacts._list_for_download = None
     return client
 
 

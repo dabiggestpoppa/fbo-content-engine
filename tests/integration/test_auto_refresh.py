@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from tests.integration.conftest import install_post_as_stream
 
 from notebooklm import NotebookLMClient
 from notebooklm.auth import AuthTokens

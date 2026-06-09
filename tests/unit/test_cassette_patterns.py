@@ -22,6 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from tests import vcr_config
 from tests.cassette_patterns import (
     DISPLAY_NAME_FALSE_POSITIVES,

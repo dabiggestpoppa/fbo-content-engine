@@ -27,7 +27,7 @@ from __future__ import annotations
 import pytest
 
 from tests.integration.conftest import skip_no_cassettes
-from vcr_config import notebooklm_vcr
+from tests.vcr_config import notebooklm_vcr
 
 from .conftest import build_mcp_client
 

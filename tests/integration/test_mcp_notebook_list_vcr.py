@@ -43,7 +43,7 @@ from fastmcp import Client  # noqa: E402 - after importorskip guard
 from notebooklm import NotebookLMClient  # noqa: E402
 from notebooklm.mcp.server import create_server  # noqa: E402
 from tests.integration.conftest import get_vcr_auth, skip_no_cassettes  # noqa: E402
-from vcr_config import notebooklm_vcr  # noqa: E402
+from tests.vcr_config import notebooklm_vcr  # noqa: E402
 
 # Both module-level marks: ``vcr`` so the integration-tier collection hook and
 # the keepalive/network-guard autouse fixtures recognize this as a VCR test, and

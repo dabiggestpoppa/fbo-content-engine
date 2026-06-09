@@ -26,7 +26,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from tests.integration.conftest import skip_no_cassettes
-from vcr_config import notebooklm_vcr
+from tests.vcr_config import notebooklm_vcr
 
 from .conftest import build_zero_retry_mcp_client
 

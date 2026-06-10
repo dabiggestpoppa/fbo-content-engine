@@ -1,14 +1,14 @@
 [project]
-name = "notebooklm-py"
+name = "fbo-content-engine"
 version = "0.8.0"
-description = "Unofficial Python library for automating Google NotebookLM"
+description = "FBO Content Engine — Automated content generation from trading research. Generate podcasts, videos, slides, quizzes, and more."
 dynamic = ["readme"]
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Teng Lin", email = "teng.lin@gmail.com"}
+    {name = "FBO", email = "fbo@quant-lab.local"}
 ]
-keywords = ["notebooklm", "google", "ai", "automation", "rpc", "client", "api"]
+keywords = ["fbo", "content-engine", "notebooklm", "ai", "automation", "content-generation", "trading"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -34,10 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/teng-lin/notebooklm-py"
-Repository = "https://github.com/teng-lin/notebooklm-py"
-Documentation = "https://github.com/teng-lin/notebooklm-py#readme"
-Issues = "https://github.com/teng-lin/notebooklm-py/issues"
+Homepage = "https://github.com/dabiggestpoppa/fbo-content-engine"
+Repository = "https://github.com/dabiggestpoppa/fbo-content-engine"
+Documentation = "https://github.com/dabiggestpoppa/fbo-content-engine#readme"
+Issues = "https://github.com/dabiggestpoppa/fbo-content-engine/issues"
 
 [project.optional-dependencies]
 markdown = ["markdownify>=0.14.1,<2"]

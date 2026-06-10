@@ -176,6 +176,27 @@ def _is_rpc_path(parts: list[str]) -> bool:
     return bool(parts) and parts[0] == "rpc"
 
 
+def _is_browser_capture_path(parts: list[str]) -> bool:
+    """True if ``parts`` targets the ``notebooklm._auth.browser_capture`` core.
+
+    The transport-neutral browser launch -> capture -> filter -> persist
+    primitive (``_auth/browser_capture.py``) is a **sanctioned** exception to
+    the no-private-module rule, in the same spirit as ``_app``: it is the
+    neutral core the CLI Playwright-login adapter
+    (``cli/services/playwright_login.py``) sits over (ADR-0021 keeps the
+    interactive presentation in ``cli/`` while the launch/capture/persist core
+    moves down to ``_auth``, reachable by the client runtime and the future
+    headless re-auth layer). The CLI adapter is allowed to import this single
+    module even though the leading ``_auth`` would otherwise flag it as private.
+    Only this one module is exempted — the rest of ``_auth.*`` stays behind the
+    ``auth.py`` facade.
+
+    ``parts`` is the path *below* the ``notebooklm`` prefix, e.g.
+    ``["_auth", "browser_capture"]``.
+    """
+    return parts[:2] == ["_auth", "browser_capture"]
+
+
 def _is_app_path(parts: list[str]) -> bool:
     """True if ``parts`` targets the ``notebooklm._app`` business-logic layer.
 
@@ -370,8 +391,10 @@ def _violations(tree: ast.AST) -> list[str]:  # noqa: C901 - flat dispatch on im
                 if mod_parts and mod_parts[0] == "notebooklm":
                     if len(mod_parts) >= 2:
                         sub_parts = mod_parts[1:]
-                        # ``notebooklm._app`` is the sanctioned shared layer.
-                        if _is_app_path(sub_parts):
+                        # ``notebooklm._app`` is the sanctioned shared layer;
+                        # ``notebooklm._auth.browser_capture`` is the sanctioned
+                        # neutral browser-capture core (ADR-0021).
+                        if _is_app_path(sub_parts) or _is_browser_capture_path(sub_parts):
                             continue
                         # Rule 1 (any private segment) or Rule 2 (rpc layer).
                         if _has_private_segment(sub_parts) or _is_rpc_path(sub_parts):
@@ -393,8 +416,10 @@ def _violations(tree: ast.AST) -> list[str]:  # noqa: C901 - flat dispatch on im
             elif node.level >= 2:
                 # Relative parent-package import (cli reaches into notebooklm/*).
                 if mod:
-                    # ``from .._app...`` / ``from ..._app...`` — sanctioned layer.
-                    if _is_app_path(mod_parts):
+                    # ``from .._app...`` / ``from ..._app...`` — sanctioned layer;
+                    # ``from ..._auth.browser_capture import …`` — sanctioned
+                    # neutral browser-capture core (ADR-0021).
+                    if _is_app_path(mod_parts) or _is_browser_capture_path(mod_parts):
                         continue
                     # Rule 1 (any private segment) or Rule 2 (rpc layer).
                     if _has_private_segment(mod_parts) or _is_rpc_path(mod_parts):

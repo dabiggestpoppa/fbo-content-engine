@@ -625,10 +625,19 @@ The boundary is enforced statically by
 [`tests/_guardrails/test_cli_boundary.py`](../tests/_guardrails/test_cli_boundary.py):
 CLI modules may import public `notebooklm` modules and their own
 intra-CLI private helpers, but not `notebooklm._*`, `notebooklm.rpc.*`,
-or private names from public modules. The same test keeps low-level
-helpers (`runtime`, `context`, `resolve`, `rendering`, `auth_runtime`,
-`options`) from growing upward dependencies on command modules or the
-`cli.helpers` compatibility facade.
+or private names from public modules. **Two sanctioned exceptions** to the
+`notebooklm._*` rule are whitelisted in that gate: `notebooklm._app`
+(the transport-neutral business-logic layer every adapter consumes) and the
+single module `notebooklm._auth.browser_capture` (the transport-neutral
+browser launch→capture→filter→persist core that the Playwright login adapter
+[`cli/services/playwright_login.py`](../src/notebooklm/cli/services/playwright_login.py)
+sits over, per ADR-0021 — interactive presentation stays in `cli/` while the
+neutral core moves down to `_auth`, reachable by the client runtime and the
+future headless re-auth layer). No other `_auth.*` module may be imported by
+the CLI — the rest stays behind the `auth.py` facade. The same test keeps
+low-level helpers (`runtime`, `context`, `resolve`, `rendering`,
+`auth_runtime`, `options`) from growing upward dependencies on command modules
+or the `cli.helpers` compatibility facade.
 
 ## Middleware chain (ADR-0009)
 

@@ -101,6 +101,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Artifact.from_mind_map` was lifted to reuse the shared `NoteRow` extraction
   so the position knowledge lives in one place. Additive: absent / legacy
   rows still yield `None`; no signature change.
+- **`profile` filesystem commands now surface a friendly error + exit 1
+  instead of a raw traceback** (#1520). The `profile delete` (`shutil.rmtree`),
+  `profile create` (directory materialization), `profile rename` (`os.rename`),
+  and text-mode `profile list` paths performed their pure-filesystem operations
+  unguarded, so an `OSError` — a half-deleted or locked profile directory, a
+  read-only mount, or a browser-profile file held by AV/the browser on Windows
+  — escaped `SectionedGroup.main` (which only catches `ClickException`/`Abort`)
+  and printed a Python traceback. Each now mirrors `profile switch`'s existing
+  `except OSError -> click.ClickException` idiom, yielding the documented
+  friendly-message + exit-1 CLI contract. The `--json profile list` path keeps
+  its existing `handle_errors` envelope (an unexpected `OSError` there stays the
+  `UNEXPECTED_ERROR` / exit-2 contract automation relies on).
 - **Playwright login: closing the browser during the final storage-state
   capture now shows the browser-closed help instead of a bug-report prompt**
   (#1514, deferred from the #1512 review). Every in-flow Playwright call in

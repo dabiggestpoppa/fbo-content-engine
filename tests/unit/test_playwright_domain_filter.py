@@ -304,6 +304,29 @@ def test_missing_or_non_str_name_cookie_skipped(caplog: pytest.LogCaptureFixture
     assert len(skip_records) == 3
 
 
+def test_non_str_path_cookie_skipped(caplog: pytest.LogCaptureFixture) -> None:
+    """A present-but-non-str ``path`` is malformed and skipped.
+
+    ``path`` participates in the dedup identity and is normalized with
+    ``or "/"``; an int/list path would slip past that guard and later crash
+    ``http.cookiejar``/``httpx`` path matching. Absent/``None`` path is fine
+    (it normalizes to the root path), so the well-formed row survives.
+    """
+    state: dict[str, Any] = {
+        "cookies": [
+            {"name": "SID", "value": "v1", "domain": ".google.com"},  # path absent -> "/"
+            {"name": "OSID", "value": "v2", "domain": ".google.com", "path": 5},  # non-str
+            {"name": "HSID", "value": "v3", "domain": ".google.com", "path": ["/"]},  # non-str
+        ],
+        "origins": [],
+    }
+    with caplog.at_level("WARNING", logger=_FILTER_LOGGER):
+        out = _filter()(state)
+    assert _names(out) == {"SID"}
+    skip_records = [r for r in caplog.records if "non-str path" in r.getMessage()]
+    assert len(skip_records) == 2
+
+
 @pytest.mark.parametrize("base_first", [True, False], ids=["base-first", "subdomain-first"])
 def test_duplicate_name_across_domains_both_kept(base_first: bool) -> None:
     """Same name on two allowed domains: BOTH rows persist, in either input order.

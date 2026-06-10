@@ -217,13 +217,25 @@ def filter_storage_state_cookies_by_domain_policy(
                 reprlib.repr(cookie),
             )
             continue
+        # ``path`` participates in the dedup identity below and is normalized
+        # with ``or "/"``; a present-but-non-str path (int, list) would slip
+        # past that and later crash http.cookiejar/httpx path matching, so
+        # treat it as malformed. ``None``/absent is fine — it normalizes to
+        # the root path, matching the loaders.
+        path = cookie.get("path")
+        if path is not None and not isinstance(path, str):
+            logger.warning(
+                "Skipping storage_state cookie with non-str path: %s",
+                reprlib.repr(cookie),
+            )
+            continue
         if not _is_allowed(domain):
             continue
 
         # Full RFC 6265 identity. ``or "/"`` mirrors the path normalization
         # the loaders and the save_cookies_to_storage merge key use, so an
         # empty-path twin can't survive as a phantom duplicate row.
-        identity = (name, domain, cookie.get("path") or "/")
+        identity = (name, domain, path or "/")
         existing = index_by_identity.get(identity)
         if existing is None:
             index_by_identity[identity] = len(filtered_cookies)

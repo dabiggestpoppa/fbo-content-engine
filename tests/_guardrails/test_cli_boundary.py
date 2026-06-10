@@ -192,9 +192,25 @@ def _is_browser_capture_path(parts: list[str]) -> bool:
     ``auth.py`` facade.
 
     ``parts`` is the path *below* the ``notebooklm`` prefix, e.g.
-    ``["_auth", "browser_capture"]``.
+    ``["_auth", "browser_capture"]`` (matches the dotted-module forms
+    ``from notebooklm._auth.browser_capture import …`` and
+    ``from ..._auth.browser_capture import …``).
     """
     return parts[:2] == ["_auth", "browser_capture"]
+
+
+def _is_browser_capture_alias_import(parent_parts: list[str], names: list[ast.alias]) -> bool:
+    """True for the ``from <pkg>._auth import browser_capture`` shape.
+
+    Complements :func:`_is_browser_capture_path` (which matches the
+    dotted-module forms) so the sanctioned module stays exempt across *every*
+    import shape: ``from notebooklm._auth import browser_capture`` and
+    ``from .._auth import browser_capture`` resolve the module via the imported
+    *name* rather than the module path, so they are checked here. ``parent_parts``
+    is the package path below ``notebooklm`` (e.g. ``["_auth"]``); the exemption
+    only applies when every imported name is exactly ``browser_capture``.
+    """
+    return parent_parts == ["_auth"] and all(alias.name == "browser_capture" for alias in names)
 
 
 def _is_app_path(parts: list[str]) -> bool:
@@ -394,7 +410,11 @@ def _violations(tree: ast.AST) -> list[str]:  # noqa: C901 - flat dispatch on im
                         # ``notebooklm._app`` is the sanctioned shared layer;
                         # ``notebooklm._auth.browser_capture`` is the sanctioned
                         # neutral browser-capture core (ADR-0021).
-                        if _is_app_path(sub_parts) or _is_browser_capture_path(sub_parts):
+                        if (
+                            _is_app_path(sub_parts)
+                            or _is_browser_capture_path(sub_parts)
+                            or _is_browser_capture_alias_import(sub_parts, node.names)
+                        ):
                             continue
                         # Rule 1 (any private segment) or Rule 2 (rpc layer).
                         if _has_private_segment(sub_parts) or _is_rpc_path(sub_parts):
@@ -419,7 +439,11 @@ def _violations(tree: ast.AST) -> list[str]:  # noqa: C901 - flat dispatch on im
                     # ``from .._app...`` / ``from ..._app...`` — sanctioned layer;
                     # ``from ..._auth.browser_capture import …`` — sanctioned
                     # neutral browser-capture core (ADR-0021).
-                    if _is_app_path(mod_parts) or _is_browser_capture_path(mod_parts):
+                    if (
+                        _is_app_path(mod_parts)
+                        or _is_browser_capture_path(mod_parts)
+                        or _is_browser_capture_alias_import(mod_parts, node.names)
+                    ):
                         continue
                     # Rule 1 (any private segment) or Rule 2 (rpc layer).
                     if _has_private_segment(mod_parts) or _is_rpc_path(mod_parts):
@@ -453,8 +477,10 @@ def _violations(tree: ast.AST) -> list[str]:  # noqa: C901 - flat dispatch on im
                 if not (len(parts) >= 2 and parts[0] == "notebooklm"):
                     continue
                 sub_parts = parts[1:]
-                # ``import notebooklm._app[.x]`` is the sanctioned shared layer.
-                if _is_app_path(sub_parts):
+                # ``import notebooklm._app[.x]`` is the sanctioned shared layer;
+                # ``import notebooklm._auth.browser_capture`` is the sanctioned
+                # neutral browser-capture core (ADR-0021).
+                if _is_app_path(sub_parts) or _is_browser_capture_path(sub_parts):
                     continue
                 # Rule 1 (any private segment) or Rule 2 (rpc layer).
                 if _has_private_segment(sub_parts) or _is_rpc_path(sub_parts):
@@ -857,4 +883,55 @@ def test_cli_boundary_allows_sanctioned_app_layer_imports(source: str) -> None:
 )
 def test_cli_boundary_app_allowlist_is_exact_not_prefix(source: str, expected: str) -> None:
     """The ``_app`` allowlist must not leak to other ``_app``-prefixed packages."""
+    assert expected in _violations(ast.parse(source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from notebooklm._auth.browser_capture import run_browser_capture\n",
+        "from .._auth.browser_capture import run_browser_capture\n",
+        "from ..._auth.browser_capture import run_browser_capture\n",
+        "from notebooklm._auth import browser_capture\n",
+        "from .._auth import browser_capture\n",
+        "from ..._auth import browser_capture\n",
+        "import notebooklm._auth.browser_capture\n",
+    ],
+)
+def test_cli_boundary_allows_sanctioned_browser_capture_imports(source: str) -> None:
+    """``notebooklm._auth.browser_capture`` is the sanctioned neutral capture core.
+
+    Every import shape that targets this single module must be allowed even
+    though the leading ``_auth`` would otherwise flag it private — it is the
+    transport-neutral launch/capture/persist core the CLI Playwright-login
+    adapter sits over (ADR-0021). The rest of ``_auth.*`` stays behind the
+    ``auth.py`` facade.
+    """
+    assert _violations(ast.parse(source)) == []
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        # Sibling ``_auth`` modules are NOT sanctioned — only browser_capture is.
+        (
+            "from notebooklm._auth.cookie_policy import build_cookie_domain_allowlist\n",
+            "from notebooklm._auth.cookie_policy import ...",
+        ),
+        ("from .._auth.tokens import AuthTokens\n", "from .._auth.tokens import ..."),
+        ("from notebooklm._auth import tokens\n", "from notebooklm._auth import ..."),
+        ("from .._auth import storage\n", "from .._auth import ..."),
+        ("import notebooklm._auth.cookie_policy\n", "import notebooklm._auth.cookie_policy"),
+        # ``browser_capture`` alongside a sibling name is not the sanctioned shape
+        # (the exemption requires every imported name to be browser_capture).
+        (
+            "from notebooklm._auth import browser_capture, tokens\n",
+            "from notebooklm._auth import ...",
+        ),
+    ],
+)
+def test_cli_boundary_browser_capture_allowlist_is_exact_not_prefix(
+    source: str, expected: str
+) -> None:
+    """The browser_capture exemption must not leak to other ``_auth.*`` modules."""
     assert expected in _violations(ast.parse(source))

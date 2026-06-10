@@ -67,6 +67,13 @@ class BrowserCaptureIO(Protocol):
     line (``*args, **kwargs`` pass through verbatim, incl. ``markup=False``);
     ``fail`` aborts the flow (the CLI maps it to ``SystemExit`` via
     ``exit_with_code``); ``run_async`` drives an awaitable to completion.
+
+    Note: :func:`run_browser_capture` itself never calls ``run_async`` — only
+    the adapter's post-capture ``repair_playwright_account_metadata`` does.
+    ``run_async`` stays on this Protocol purely to keep it shape-compatible with
+    ``LoginIO`` so one concrete sink satisfies both layers; a future
+    ``BrowserCaptureIO`` impl that never reaches account-metadata repair may
+    supply a trivial ``run_async``.
     """
 
     def emit(self, *args: Any, **kwargs: Any) -> None: ...
@@ -314,11 +321,19 @@ def _reject_unsupported_mode(*, headless: bool, interactive: bool, io: BrowserCa
     explicit, programmer-facing error rather than a silent behavior change. The
     interactive (``interactive=True, headless=False``) path is the sole mode the
     existing ``notebooklm login`` flow exercises.
+
+    ``io`` is accepted but deliberately unused in P1: this is a programmer-facing
+    guard that raises ``NotImplementedError`` (not an end-user condition routed
+    through ``io.fail``). The parameter is reserved so P2's headless arm can,
+    if it chooses, surface a user-facing ``io.fail`` / silent path here instead
+    of raising — without changing this signature.
     """
     if interactive and not headless:
         return
     # P2 will implement the headless arm; until then refuse loudly so a caller
-    # cannot silently get a half-wired flow.
+    # cannot silently get a half-wired flow. (See ``io`` note above — this is a
+    # programmer error, not an ``io.fail`` end-user condition.)
+    _ = io  # reserved for P2's headless arm; intentionally unused in P1
     raise NotImplementedError(
         "Headless / non-interactive browser capture is not implemented yet "
         "(reserved for the layer-3 headless re-auth feature). "

@@ -80,6 +80,12 @@ outputs = pipeline.generate_all(notebook, formats=[
 - **Batch mode** — Generate content for entire content calendars in one run
 - **Download everything** — All artifacts saved locally, no cloud lock-in
 
+## GLX Creative System
+
+The canonical creative direction for GLX WORLD lives in [`docs/design/GLX_CONTENT_CONSTITUTION.md`](docs/design/GLX_CONTENT_CONSTITUTION.md).
+
+It defines the GLX visual universe, protagonist, caricature/anime/chibi/cinematic styles, content pillars, recurring series, storytelling rules, creative framing angles, content depth ladder, and editorial quality gates. It is the creative source of truth for GLX-branded output.
+
 ## Credits
 
 Based on [notebooklm-py](https://github.com/teng-lin/notebooklm-py) by Teng Lin. Extended and maintained by FBO.

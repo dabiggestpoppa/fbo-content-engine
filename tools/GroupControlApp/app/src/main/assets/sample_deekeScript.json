@@ -1,0 +1,76 @@
+{
+  "name": "示例DeekeScript",
+  "versionCode": "100",
+  "versionName": "1.0.0",
+  "icon": "logo/dke.png",
+  "head": "img/root.png",
+  "debug": true,
+  "host": "https://example.com",
+  "switchSetting": {
+    "alipay": true
+  },
+  "groups": [
+    {
+      "title": "示例功能组",
+      "titleHidden": false,
+      "hidden": false,
+      "methods": [
+        {
+          "title": "示例功能1",
+          "icon": "logo/fans.png",
+          "jsFile": "tasks/task_example_1.js",
+          "settingPage": {
+            "params": [
+              {
+                "key": "param1",
+                "title": "参数1",
+                "type": "text",
+                "value": "默认值"
+              }
+            ]
+          },
+          "hidden": false,
+          "runType": "floatSwitch",
+          "packageName": "com.example.app",
+          "columns": 8,
+          "autoOpen": true
+        },
+        {
+          "title": "示例功能2",
+          "icon": "logo/example.png",
+          "jsFile": "tasks/task_example_2.js",
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "bottomMenus": [
+    {
+      "title": "底部菜单",
+      "methods": [
+        {
+          "title": "底部功能1",
+          "jsFile": "tasks/bottom_task_1.js"
+        }
+      ]
+    }
+  ],
+  "settingLists": [
+    {
+      "title": "设置列表",
+      "methods": [
+        {
+          "title": "设置功能1",
+          "jsFile": "tasks/setting_task_1.js"
+        }
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "name": "激活码验证",
+      "url": "/api/verify",
+      "method": "POST"
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+﻿package top.deeke.groupcontrol.model
+
+import android.os.Parcelable
+import java.util.Date
+
+data class Task(
+    val id: Int = 0,
+    val name: String = "",
+    val remark: String = "",
+    val createTime: Long = System.currentTimeMillis(),
+    val deviceIds: List<Int> = emptyList(), // 绑定的设备ID列表
+    val commands: List<TaskCommand> = emptyList(), // 任务指令列表
+    val scheduleType: ScheduleType = ScheduleType.ONCE, // 执行类型
+    val status: TaskStatus = TaskStatus.STOPPED, // 任务状态
+    val order: Int = 0, // 排序位置
+    val isPinned: Boolean = false // 是否置顶
+) : Parcelable {
+    override fun describeContents(): Int = 0
+    override fun writeToParcel(dest: android.os.Parcel, flags: Int) {
+        dest.writeInt(id)
+        dest.writeString(name)
+        dest.writeString(remark)
+        dest.writeLong(createTime)
+        dest.writeList(deviceIds)
+        dest.writeList(commands)
+        dest.writeString(scheduleType.name)
+        dest.writeString(status.name)
+        dest.writeInt(order)
+        dest.writeByte(if (isPinned) 1 else 0)
+    }
+    
+    companion object {
+        @JvmField
+        val CREATOR = object : android.os.Parcelable.Creator<Task> {
+            override fun createFromParcel(parcel: android.os.Parcel): Task {
+                return Task(
+                    id = parcel.readInt(),
+                    name = parcel.readString() ?: "",
+                    remark = parcel.readString() ?: "",
+                    createTime = parcel.readLong(),
+                    deviceIds = parcel.readArrayList(Int::class.java.classLoader) as? List<Int> ?: emptyList(),
+                    commands = parcel.readArrayList(TaskCommand::class.java.classLoader) as? List<TaskCommand> ?: emptyList(),
+                    scheduleType = ScheduleType.valueOf(parcel.readString() ?: ScheduleType.ONCE.name),
+                    status = TaskStatus.valueOf(parcel.readString() ?: TaskStatus.STOPPED.name),
+                    order = parcel.readInt(),
+                    isPinned = parcel.readByte() != 0.toByte()
+                )
+            }
+            
+            override fun newArray(size: Int): Array<Task?> = arrayOfNulls(size)
+        }
+    }
+}
+
+data class TaskCommand(
+    val commandId: Int,
+    val startTime: String, // 开始时间 HH:mm
+    val endTime: String     // 结束时间 HH:mm
+) : Parcelable {
+    override fun describeContents(): Int = 0
+    override fun writeToParcel(dest: android.os.Parcel, flags: Int) {
+        dest.writeInt(commandId)
+        dest.writeString(startTime)
+        dest.writeString(endTime)
+    }
+    
+    companion object {
+        @JvmField
+        val CREATOR = object : android.os.Parcelable.Creator<TaskCommand> {
+            override fun createFromParcel(parcel: android.os.Parcel): TaskCommand {
+                return TaskCommand(
+                    commandId = parcel.readInt(),
+                    startTime = parcel.readString() ?: "",
+                    endTime = parcel.readString() ?: ""
+                )
+            }
+            
+            override fun newArray(size: Int): Array<TaskCommand?> = arrayOfNulls(size)
+        }
+    }
+}
+
+enum class ScheduleType {
+    ONCE,   // 当天运行
+    DAILY   // 每天运行
+}
+
+enum class TaskStatus {
+    STOPPED,    // 停止
+    RUNNING,    // 运行中
+    PAUSED,     // 暂停
+    ERROR       // 错误
+}

@@ -1,0 +1,70 @@
+﻿package top.deeke.groupcontrol.ui.theme
+
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+private val DarkColorScheme = darkColorScheme(
+    primary = NeonBlue,
+    secondary = NeonCyan,
+    tertiary = NeonGreen,
+    background = TechDark,
+    surface = TechDarkSurface,
+    surfaceVariant = TechDarkSurfaceVariant,
+    onPrimary = TextPrimary,
+    onSecondary = TextPrimary,
+    onTertiary = TextPrimary,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextSecondary,
+    error = ErrorRed,
+    onError = TextPrimary
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = NeonBlue,
+    secondary = NeonCyan,
+    tertiary = NeonGreen,
+    background = Color(0xFFF5F5F5),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFF0F0F0),
+    onPrimary = Color(0xFFFFFFFF),
+    onSecondary = Color(0xFFFFFFFF),
+    onTertiary = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF1A1A1A),
+    onSurface = Color(0xFF1A1A1A),
+    onSurfaceVariant = Color(0xFF666666),
+    error = ErrorRed,
+    onError = Color(0xFFFFFFFF)
+)
+
+@Composable
+fun GroupControlTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(), // 跟随系统主题
+    content: @Composable () -> Unit
+) {
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = if (darkTheme) TechDark.toArgb() else Color(0xFFF5F5F5).toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}

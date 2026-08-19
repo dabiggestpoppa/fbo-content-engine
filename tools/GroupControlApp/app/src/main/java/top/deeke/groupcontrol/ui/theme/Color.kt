@@ -1,0 +1,47 @@
+﻿package top.deeke.groupcontrol.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// 科技感主色调 - 深色主题
+val TechDark = Color(0xFF0A0A0A)
+val TechDarkSurface = Color(0xFF1A1A1A)
+val TechDarkSurfaceVariant = Color(0xFF2A2A2A)
+
+// 亮色主题
+val TechLight = Color(0xFFF5F5F5)
+val TechLightSurface = Color(0xFFFFFFFF)
+val TechLightSurfaceVariant = Color(0xFFF0F0F0)
+
+// 霓虹色彩
+val NeonBlue = Color(0xFF00BFFF)
+val NeonCyan = Color(0xFF00FFFF)
+val NeonGreen = Color(0xFF00FF7F)
+val NeonPurple = Color(0xFF8A2BE2)
+val NeonPink = Color(0xFFFF1493)
+val NeonOrange = Color(0xFFFF8C00)
+
+// 渐变色彩
+val GradientStart = Color(0xFF1E3C72)
+val GradientEnd = Color(0xFF2A5298)
+
+// 状态色彩
+val SuccessGreen = Color(0xFF00C851)
+val WarningOrange = Color(0xFFFF8800)
+val ErrorRed = Color(0xFFFF4444)
+val InfoBlue = Color(0xFF33B5E5)
+
+// 文字色彩 - 深色主题
+val TextPrimary = Color(0xFFFFFFFF)
+val TextSecondary = Color(0xFFB0B0B0)
+val TextDisabled = Color(0xFF666666)
+
+// 文字色彩 - 亮色主题
+val TextPrimaryLight = Color(0xFF1A1A1A)
+val TextSecondaryLight = Color(0xFF666666)
+val TextDisabledLight = Color(0xFF999999)
+
+// 边框和分割线
+val BorderColor = Color(0xFF333333)
+val DividerColor = Color(0xFF444444)
+val BorderColorLight = Color(0xFFE0E0E0)
+val DividerColorLight = Color(0xFFCCCCCC)

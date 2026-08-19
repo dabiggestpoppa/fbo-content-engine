@@ -1,0 +1,53 @@
+﻿package top.deeke.groupcontrol.model
+
+import android.os.Parcelable
+
+data class Device(
+    val id: Int = 0,
+    val name: String = "",
+    val remark: String = "",
+    val location: String = "",
+    val deviceId: String = "",
+    val status: DeviceStatus = DeviceStatus.OFFLINE,
+    val order: Int = 0, // 排序位置
+    val isPinned: Boolean = false // 是否置顶
+) : Parcelable {
+    override fun describeContents(): Int = 0
+    override fun writeToParcel(dest: android.os.Parcel, flags: Int) {
+        dest.writeInt(id)
+        dest.writeString(name)
+        dest.writeString(remark)
+        dest.writeString(location)
+        dest.writeString(deviceId)
+        dest.writeString(status.name)
+        dest.writeInt(order)
+        dest.writeByte(if (isPinned) 1 else 0)
+    }
+    
+    companion object {
+        @JvmField
+        val CREATOR = object : android.os.Parcelable.Creator<Device> {
+            override fun createFromParcel(parcel: android.os.Parcel): Device {
+                return Device(
+                    id = parcel.readInt(),
+                    name = parcel.readString() ?: "",
+                    remark = parcel.readString() ?: "",
+                    location = parcel.readString() ?: "",
+                    deviceId = parcel.readString() ?: "",
+                    status = DeviceStatus.valueOf(parcel.readString() ?: DeviceStatus.OFFLINE.name),
+                    order = parcel.readInt(),
+                    isPinned = parcel.readByte() != 0.toByte()
+                )
+            }
+            
+            override fun newArray(size: Int): Array<Device?> = arrayOfNulls(size)
+        }
+    }
+}
+
+enum class DeviceStatus {
+    ONLINE,    // 在线
+    OFFLINE,   // 离线
+    BUSY,      // 忙碌
+    ERROR      // 错误
+}

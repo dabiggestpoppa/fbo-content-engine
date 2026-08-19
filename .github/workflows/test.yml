@@ -27,7 +27,7 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         # Honor the workflow_dispatch custom_branch input; falls back to the
         # triggering ref for push/pull_request (input is empty there).
@@ -35,7 +35,7 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
         cache: 'pip'
@@ -132,14 +132,14 @@ jobs:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
       with:
         # Honor the workflow_dispatch custom_branch input; falls back to the
         # triggering ref for push/pull_request (input is empty there).
         ref: ${{ inputs.custom_branch || github.ref }}
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -159,7 +159,7 @@ jobs:
         echo "version=$(uv pip show playwright | grep '^Version:' | cut -d' ' -f2)" >> $GITHUB_OUTPUT
 
     - name: Cache Playwright browsers
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       # Tolerate transient cache-backend failures: a miss already falls
       # through to the install step below, and a backend hiccup should be
       # treated the same. Without this, a 29s backend flake on a single
